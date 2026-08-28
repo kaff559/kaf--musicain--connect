@@ -1,0 +1,502 @@
+:root {
+  --primary: #3b82f6;
+  --primary-light: #60a5fa;
+  --primary-dark: #1d4ed8;
+  --accent: #38bdf8;
+  --pink: #0ea5e9;
+  --cyan: #22d3ee;
+  --bg: #0a1128;
+  --bg2: #0f1f45;
+  --card: #142a52;
+  --card-hover: #1b3766;
+  --text: #eef4ff;
+  --muted: #9db8dc;
+  --border: #274870;
+  --danger: #fb4570;
+  --success: #34d399;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(14, 165, 233, .10) 0, transparent 32%),
+    radial-gradient(circle at 85% 15%, rgba(34, 211, 238, .08) 0, transparent 30%);
+  background-attachment: fixed;
+  color: var(--text);
+}
+a { color: var(--primary-light); text-decoration: none; }
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--pink) 130%);
+  color: #fff;
+  transition: filter .15s, transform .1s;
+}
+button:hover { filter: brightness(1.12); }
+button:active { transform: translateY(1px); }
+button.secondary { background: var(--card-hover); color: var(--primary-light); border: 1px solid var(--border); }
+button.secondary:hover { background: #1c2f66; filter: none; }
+button.danger { background: linear-gradient(135deg, var(--danger) 0%, #c2255c 130%); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+input, select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--bg2);
+  color: var(--text);
+}
+input::placeholder, textarea::placeholder { color: #6f85b0; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59, 130, 246, .25); }
+label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; margin: 12px 0 4px; }
+.container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+header.topbar {
+  background: rgba(8, 16, 38, .92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+header.topbar .container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand {
+  font-size: 20px; font-weight: 800; cursor: pointer;
+  background: linear-gradient(135deg, var(--primary-light), var(--pink), var(--accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.nav-links { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.nav-links button { background: transparent; color: var(--text); font-weight: 500; padding: 8px 12px; }
+.nav-links button:hover { background: var(--card-hover); filter: none; }
+.nav-links button.active { background: rgba(59, 130, 246, .22); color: var(--primary-light); }
+main { padding: 28px 0 60px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(8, 4, 24, .28);
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+h1 { font-size: 26px; margin: 0 0 6px; color: var(--text); }
+h2 { font-size: 19px; margin: 0 0 12px; color: var(--text); }
+h3 { font-size: 16px; margin: 0 0 8px; color: var(--text); }
+p.muted, span.muted { color: var(--muted); font-size: 13px; }
+.badge {
+  display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  background: rgba(59, 130, 246, .22); color: var(--primary-light); text-transform: uppercase; letter-spacing: .03em;
+}
+.badge.pending { background: rgba(56, 189, 248, .2); color: var(--accent); }
+.badge.accepted { background: rgba(52, 211, 153, .2); color: var(--success); }
+.badge.declined, .badge.cancelled, .badge.no_show_client, .badge.no_show_musician { background: rgba(251, 69, 112, .2); color: var(--danger); }
+.badge.completed { background: rgba(34, 211, 238, .2); color: var(--cyan); }
+.badge.countered { background: rgba(56, 189, 248, .2); color: var(--accent); }
+.badge.emergency { background: rgba(251, 69, 112, .2); color: var(--danger); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row.between { justify-content: space-between; }
+.stars { color: var(--accent); font-size: 14px; }
+.error-box { background: rgba(251, 69, 112, .16); color: #ff9fb8; border: 1px solid rgba(251, 69, 112, .4); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
+.success-box { background: rgba(52, 211, 153, .16); color: #7bf0c4; border: 1px solid rgba(52, 211, 153, .4); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.tabs button { background: none; color: var(--muted); border-radius: 0; padding: 10px 14px; font-weight: 600; }
+.tabs button:hover { filter: none; color: var(--text); }
+.tabs button.active { color: var(--primary-light); border-bottom: 2px solid var(--primary); }
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(8, 4, 24, .65); display: flex; align-items: center;
+  justify-content: center; z-index: 100; padding: 20px;
+}
+.modal {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 480px; width: 100%;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(4, 2, 16, .5);
+}
+.center-form { max-width: 420px; margin: 40px auto; }
+.notif-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item.unread { font-weight: 600; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); display: inline-block; margin-right: 6px; }
+footer.appfoot { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
+footer.appfoot .footer-link { color: var(--primary-light); text-decoration: none; }
+footer.appfoot .footer-link:hover { text-decoration: underline; }
+.empty-state { text-align: center; color: var(--muted); padding: 40px 20px; }
+.pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+
+/* ---------- opening-screen backgrounds (home, equipment, login, signup) ---------- */
+.full-bleed { width: 100vw; position: relative; left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw; }
+.gradient-surface {
+  background-color: #081026;
+  background-image:
+    radial-gradient(circle at 12% 20%, rgba(14, 165, 233, .55) 0, transparent 28%),
+    radial-gradient(circle at 88% 15%, rgba(34, 211, 238, .45) 0, transparent 26%),
+    radial-gradient(circle at 50% 100%, rgba(56, 189, 248, .30) 0, transparent 35%),
+    radial-gradient(rgba(255,255,255,.14) 1.5px, transparent 1.5px),
+    linear-gradient(135deg, #0c1a4a 0%, #1e40af 50%, #3b82f6 100%);
+  background-size: auto, auto, auto, 22px 22px, auto;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+}
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 72px 20px 64px;
+  text-align: center;
+  color: #fff;
+  margin-bottom: 24px;
+}
+.hero .container { max-width: 720px; position: relative; z-index: 2; }
+.hero h1 { color: #fff; font-size: 34px; margin-bottom: 10px; text-shadow: 0 2px 18px rgba(0,0,0,.35); }
+.hero p { color: rgba(255,255,255,.9); font-size: 15px; margin: 0; text-shadow: 0 1px 8px rgba(0,0,0,.3); }
+.hero .music-note { font-size: 30px; opacity: .95; display: block; margin-bottom: 8px; }
+.auth-shell {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+.auth-shell .center-form {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  box-shadow: 0 24px 70px rgba(4, 2, 20, .55);
+  border: 1px solid var(--border);
+}
+
+/* ---------- floating instrument decoration ---------- */
+.floating-icons {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.fi {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  font-size: var(--size, 80px);
+  opacity: var(--op, .34);
+  filter: drop-shadow(0 10px 18px rgba(4, 2, 20, .45));
+  animation: fi-float var(--dur, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform;
+}
+@keyframes fi-float {
+  0%   { transform: translateY(0) rotate(var(--rot, -8deg)); }
+  50%  { transform: translateY(-20px) rotate(calc(var(--rot, -8deg) * -1)); }
+  100% { transform: translateY(0) rotate(var(--rot, -8deg)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fi, .stage-glow, .fog span, .light-sweep::after { animation: none; }
+}
+
+/* ---------- "stage" hero: instruments clustered on a lit-up piano, like a band about to play ---------- */
+.hero.stage-hero { min-height: 420px; padding: 56px 20px 0; display: flex; flex-direction: column; }
+.hero.stage-hero .container { flex: 0 0 auto; }
+.stage-glow {
+  position: absolute;
+  left: 50%; bottom: 40px;
+  width: 900px; height: 520px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(34,211,238,.40) 0%, rgba(59,130,246,.30) 35%, transparent 70%);
+  filter: blur(6px);
+  animation: stage-pulse 6s ease-in-out infinite;
+  z-index: 0;
+}
+@keyframes stage-pulse {
+  0%, 100% { opacity: .7; transform: translateX(-50%) scale(1); }
+  50%      { opacity: 1;  transform: translateX(-50%) scale(1.06); }
+}
+.fog { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.fog span {
+  position: absolute;
+  bottom: -20px;
+  width: 420px; height: 160px;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,.14) 0%, transparent 72%);
+  filter: blur(2px);
+  animation: fog-drift var(--fdur, 16s) ease-in-out infinite;
+  animation-delay: var(--fdelay, 0s);
+}
+@keyframes fog-drift {
+  0%   { transform: translateX(-60px) translateY(0); }
+  50%  { transform: translateX(60px) translateY(-10px); }
+  100% { transform: translateX(-60px) translateY(0); }
+}
+.crowd-band {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 150px;
+  z-index: 1;
+  opacity: .68;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 45%, transparent 100%);
+}
+.crowd-band svg { width: 100%; height: 100%; display: block; }
+.crowd-arm {
+  animation: crowd-wave var(--cdur, 3s) ease-in-out infinite;
+  animation-delay: var(--cdelay, 0s);
+}
+@keyframes crowd-wave {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-7px) rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) { .crowd-arm { animation: none; } }
+.light-sweep {
+  position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none;
+}
+
+/* ---------- bottom-of-page closer: crossing stage lights + crowd ---------- */
+.stage-lights-band {
+  position: relative;
+  overflow: hidden;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 50px;
+  margin-top: 44px;
+  margin-bottom: 8px;
+  background: linear-gradient(180deg, #050b1e 0%, #0f1f45 55%, #0c1a4a 100%);
+}
+.stage-lights-band .stage-lights-copy {
+  position: relative; z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.beam-rig {
+  position: absolute; top: 0; left: 50%; width: 0; height: 0; z-index: 0; pointer-events: none;
+}
+.beam-rig .beam {
+  position: absolute; top: -20px; left: 0;
+  width: var(--w, 6px); height: 620px;
+  transform: rotate(var(--angle, 0deg));
+  transform-origin: top center;
+  filter: blur(5px);
+  mix-blend-mode: screen;
+  opacity: .5;
+  animation: beam-flicker var(--dur, 4s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes beam-flicker {
+  0%, 100% { opacity: .3; }
+  50%      { opacity: .65; }
+}
+@media (prefers-reduced-motion: reduce) { .beam-rig .beam { animation: none; opacity: .45; } }
+
+/* upward beams in the main hero: anchored at the piano keys, shining up past
+   the equalizer toward the "Find your musician..." title */
+.beam-rig-up {
+  position: absolute; bottom: 64px; left: 50%; width: 0; height: 0; z-index: 0; pointer-events: none;
+}
+.beam-rig-up .beam {
+  position: absolute; bottom: -20px; left: 0;
+  width: var(--w, 6px); height: 380px;
+  transform: rotate(var(--angle, 0deg));
+  transform-origin: bottom center;
+  filter: blur(5px);
+  mix-blend-mode: screen;
+  opacity: .5;
+  animation: beam-flicker var(--dur, 4s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) { .beam-rig-up .beam { animation: none; opacity: .45; } }
+
+/* a second set, anchored right beneath the title/subtitle block, shining
+   down to meet the ones rising from the piano keys */
+.beam-rig-title {
+  position: absolute; top: 100%; left: 50%; width: 0; height: 0; z-index: 0; pointer-events: none;
+}
+.beam-rig-title .beam {
+  position: absolute; top: -20px; left: 0;
+  width: var(--w, 6px); height: 280px;
+  transform: rotate(var(--angle, 0deg));
+  transform-origin: top center;
+  filter: blur(5px);
+  mix-blend-mode: screen;
+  opacity: .5;
+  animation: beam-flicker var(--dur, 4s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) { .beam-rig-title .beam { animation: none; opacity: .45; } }
+.crowd-band--tall {
+  height: 300px;
+  opacity: .88;
+  -webkit-mask-image: linear-gradient(to top, #000 32%, transparent 96%);
+  mask-image: linear-gradient(to top, #000 32%, transparent 96%);
+}
+.stage-lights-copy { position: relative; z-index: 2; text-align: center; color: #fff; }
+.stage-lights-copy h2 { font-size: 26px; margin-bottom: 6px; text-shadow: 0 2px 18px rgba(0,0,0,.55); }
+.stage-lights-copy p { color: rgba(255,255,255,.85); margin: 0; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
+.light-sweep::after {
+  content: '';
+  position: absolute; top: -50%; left: -30%;
+  width: 40%; height: 200%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.10) 45%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.10) 55%, transparent 100%);
+  animation: sweep 7s ease-in-out infinite;
+}
+@keyframes sweep {
+  0%   { transform: translateX(-40%); }
+  50%  { transform: translateX(220%); }
+  100% { transform: translateX(220%); }
+}
+.piano-strip {
+  position: relative;
+  z-index: 2;
+  height: 64px;
+  margin-top: auto;
+  display: flex;
+  background: linear-gradient(180deg, #eaf2ff 0%, #cfe0fa 100%);
+  box-shadow: 0 -10px 40px rgba(6, 3, 20, .5);
+  border-top: 1px solid rgba(255,255,255,.5);
+}
+/* the hero's own piano sits flush at the hero's bottom edge (overflow:hidden
+   clips anything below it), so its "beneath the keys" glow bleeds upward
+   from the keys into the equalizer instead, right where the beams start.
+   Sits behind the equalizer bars (z-index 1, same layer as the crowd band). */
+.keys-glow {
+  /* anchored at the very bottom of the keys (not their top edge) — the
+     portion behind the opaque piano is hidden, so height is padded out to
+     keep the same amount visible above it */
+  position: absolute; left: 0; right: 0; bottom: 0; height: 164px;
+  z-index: 1; pointer-events: none;
+  background: linear-gradient(0deg, rgba(34,211,238,.5) 0%, rgba(14,165,233,.24) 55%, transparent 100%);
+  filter: blur(14px);
+}
+/* light continuing past the bottom of the keys, downward onto the page below
+   the hero (the hero itself clips at its own edge, so this lives just
+   outside it, pulled up flush against the piano — no gap) */
+.keys-glow-below {
+  height: 150px;
+  margin-top: -24px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(34,211,238,.4) 0%, rgba(14,165,233,.2) 45%, transparent 100%);
+  filter: blur(10px);
+}
+.piano-strip .bk {
+  flex: 1;
+  border-right: 1px solid rgba(40, 70, 120, .3);
+  position: relative;
+}
+.piano-strip .bk::after {
+  content: '';
+  position: absolute; top: 0; left: 8%; right: 8%; height: 62%;
+  background: linear-gradient(180deg, #16233f 0%, #0a1120 100%);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 3px 6px rgba(0,0,0,.4);
+}
+.piano-strip .bk.no-black::after { content: none; }
+
+.equalizer {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 20px 6px;
+}
+.equalizer .bar {
+  width: 7px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--cyan) 0%, var(--primary-light) 55%, var(--pink) 100%);
+  box-shadow: 0 0 10px rgba(59, 130, 246, .55);
+  transform-origin: bottom;
+  animation: eq-bounce var(--dur, 1.2s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(var(--min, .3)); }
+  50%      { transform: scaleY(var(--max, 1)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .equalizer .bar { animation: none; transform: scaleY(.6); }
+}
+
+.vinyl-wrap {
+  position: absolute;
+  z-index: 2;
+  right: 4%;
+  top: 18%;
+  width: 190px;
+  height: 190px;
+  animation: vinyl-spin 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .vinyl-wrap { animation: none; } }
+@keyframes vinyl-spin { to { transform: rotate(360deg); } }
+.vinyl-wrap svg { width: 100%; height: 100%; filter: drop-shadow(0 14px 30px rgba(0,0,0,.5)); }
+.tonearm {
+  position: absolute;
+  z-index: 3;
+  right: 2%;
+  top: 10%;
+  width: 90px;
+  height: 90px;
+  transform: rotate(24deg);
+  transform-origin: 88% 12%;
+  opacity: .92;
+}
+
+.safety-notice {
+  background: rgba(251, 69, 112, .14);
+  border: 1px solid var(--danger);
+  border-left: 4px solid var(--danger);
+  color: #ff9fb8;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 14px 0;
+  line-height: 1.5;
+}
+
+/* ================= MOBILE (phones) ================= */
+@media (max-width: 640px) {
+  .container { padding: 0 14px; }
+
+  /* header: let it wrap onto two lines instead of clipping at a fixed
+     64px height when the brand + all four nav links can't fit one row */
+  header.topbar .container { height: auto; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; gap: 8px; }
+  .brand { font-size: 17px; }
+  .nav-links { gap: 2px; }
+  .nav-links button { padding: 6px 8px; font-size: 13px; }
+
+  h1 { font-size: 21px; }
+  .hero { padding: 44px 14px 40px; margin-bottom: 16px; }
+  .hero h1 { font-size: 24px; }
+  .hero p { font-size: 13px; }
+  .hero .music-note { font-size: 24px; }
+
+  /* the vinyl record is sized for a wide hero — shrink and tuck it into
+     the corner so it stops overlapping the (now-wrapping) title text */
+  .hero.stage-hero { min-height: 340px; }
+  .vinyl-wrap { width: 84px; height: 84px; top: 8px; right: 4%; }
+  .tonearm { width: 46px; height: 46px; top: 4px; right: 2%; }
+
+  /* thinner, tighter equalizer bars so more of the spectrum fits before
+     the hero's overflow:hidden starts cropping the outer bars */
+  .equalizer { gap: 2px; padding: 0 10px 4px; }
+  .equalizer .bar { width: 4px; }
+
+  .stage-lights-band { min-height: 300px; }
+  .stage-lights-copy h2 { font-size: 20px; }
+  .stage-lights-copy p { font-size: 13px; }
+  .beam-rig .beam, .beam-rig-up .beam, .beam-rig-title .beam { width: calc(var(--w, 6px) * 0.7); }
+
+  .grid { grid-template-columns: 1fr; }
+  .card { padding: 16px; }
+  .center-form { margin: 24px auto; }
+}

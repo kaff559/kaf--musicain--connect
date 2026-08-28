@@ -1,0 +1,17 @@
+{
+  "appId": "com.kafmusicianconnect.app",
+  "appName": "Kaf Musician Connect",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://YOUR-DEPLOYED-DOMAIN-HERE",
+    "cleartext": false
+  },
+  "backgroundColor": "#0a1128",
+  "ios": {
+    "backgroundColor": "#0a1128"
+  },
+  "android": {
+    "backgroundColor": "#0a1128"
+  }
+}

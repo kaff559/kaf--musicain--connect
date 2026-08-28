@@ -1,0 +1,18 @@
+{
+  "name": "musician-connect-app",
+  "version": "1.0.0",
+  "description": "Musician Connect - full-stack app (musicians, clients, equipment rental) with zero npm dependencies",
+  "main": "server/server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --experimental-sqlite server/server.js",
+    "dev": "node --experimental-sqlite --watch server/server.js",
+    "create-admin": "node --experimental-sqlite server/scripts/create-admin.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

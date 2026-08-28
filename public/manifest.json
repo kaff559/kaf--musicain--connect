@@ -1,0 +1,16 @@
+{
+  "name": "Kaf Musician Connect",
+  "short_name": "Kaf Connect",
+  "description": "Find and book musicians, singers, MCs, and DJs, or rent event equipment.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a1128",
+  "theme_color": "#0a1128",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
