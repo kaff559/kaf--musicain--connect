@@ -4,7 +4,7 @@
   "webDir": "public",
   "bundledWebRuntime": false,
   "server": {
-    "url": "https://YOUR-DEPLOYED-DOMAIN-HERE",
+    "url": "https://kaf-musicain-connect-2.onrender.com",
     "cleartext": false
   },
   "backgroundColor": "#0a1128",

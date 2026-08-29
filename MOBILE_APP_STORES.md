@@ -168,15 +168,15 @@ free, so that's the path above.
   (like Uber or a contractor-booking app), external payment is normally
   allowed, but it's worth a quick read of Apple's guideline 3.1.3 before
   submitting if you're taking real payments by then.
-- **Account deletion** — both stores now require a way for users to
-  delete their account from inside the app, not just contact support.
-  I checked, and this app doesn't have that flow yet — just the privacy
-  policy's "email us to delete your account" option. Worth adding before
-  you submit, especially for iOS review (I can build it — just ask).
+- **Account deletion** — both stores require a way for users to delete
+  their account from inside the app, not just contact support. This is
+  now built in: logged-in users can go to **Account** in the nav bar →
+  **Delete my account** under "Danger zone," confirm with their password,
+  and their profile/listings/favorites/notifications are removed and they're
+  signed out everywhere. It's documented in the privacy policy too.
 
 ## What I can help with next
 
-- Add an in-app "delete my account" flow (confirmed missing — see above).
 - Write the store listing description/screenshots copy.
 - Re-check anything here once you've got Node/Capacitor running locally —
   I can review error messages, config files, etc. even though I can't run

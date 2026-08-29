@@ -110,6 +110,7 @@ function Topbar() {
     links.push(h('button', { class: state.page === 'notifications' ? 'active' : '', onclick: () => navigate('notifications') },
       `Notifications${state.unreadCount ? ` (${state.unreadCount})` : ''}`));
     links.push(h('span', { class: 'muted' }, state.user.name));
+    links.push(h('button', { class: state.page === 'account' ? 'active' : '', onclick: () => navigate('account') }, 'Account'));
     links.push(h('button', { class: 'secondary', onclick: doLogout }, 'Log out'));
   } else {
     links.push(h('button', { class: 'secondary', onclick: () => navigate('login') }, 'Log in'));
@@ -160,6 +161,7 @@ function PageBody() {
     case 'equipmentDetail': return EquipmentDetailPage();
     case 'admin': return AdminPage();
     case 'notifications': return NotificationsPage();
+    case 'account': return AccountPage();
     default: return h('div', {}, 'Not found');
   }
 }
@@ -852,6 +854,58 @@ function ClientDashboardPage() {
 function Tabs(items, active, onSelect) {
   return h('div', { class: 'tabs' }, items.map(([key, label]) =>
     h('button', { class: active === key ? 'active' : '', onclick: () => onSelect(key) }, label)));
+}
+
+/* ================= ACCOUNT SETTINGS ================= */
+function AccountPage() {
+  if (!state.user) { navigate('login'); return h('div', {}); }
+  const u = state.user;
+  return h('div', {},
+    h('h1', {}, 'Account settings'),
+    h('div', { class: 'card', style: 'max-width:560px' },
+      h('h3', {}, 'Your info'),
+      h('p', {}, h('strong', {}, 'Name: '), u.name),
+      h('p', {}, h('strong', {}, 'Email: '), u.email),
+      h('p', {}, h('strong', {}, 'Role: '), u.role.replace('_', ' '))
+    ),
+    DangerZoneCard(u)
+  );
+}
+
+function DangerZoneCard(u) {
+  if (u.role === 'admin') {
+    return h('div', { class: 'card', style: 'max-width:560px; margin-top:16px; border-color:var(--danger)' },
+      h('h3', { style: 'color:var(--danger)' }, 'Danger zone'),
+      h('p', { class: 'muted' }, "Admin accounts can't be deleted from here — ask another admin to remove this account from the Admin panel."));
+  }
+  return h('div', { class: 'card', style: 'max-width:560px; margin-top:16px; border-color:var(--danger)' },
+    h('h3', { style: 'color:var(--danger)' }, 'Danger zone'),
+    h('p', { class: 'muted' },
+      'Deleting your account removes your public profile and listings, your favorites, and your notifications, and signs you out everywhere immediately. Some booking or rental records may be kept in anonymized form for the other party\'s history, as described in our ',
+      h('a', { href: '/privacy-policy.html', class: 'footer-link' }, 'privacy policy'), '.'),
+    h('button', { class: 'danger', onclick: openDeleteAccountModal }, 'Delete my account'));
+}
+
+function openDeleteAccountModal() {
+  let password = '';
+  const backdrop = h('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) close(); } });
+  function close() { backdrop.remove(); }
+  backdrop.appendChild(h('div', { class: 'modal' },
+    h('h2', {}, 'Delete your account?'),
+    h('p', {}, 'This can\'t be undone. Enter your password to confirm.'),
+    h('label', {}, 'Password'),
+    h('input', { type: 'password', oninput: (e) => password = e.target.value }),
+    h('div', { class: 'row', style: 'margin-top:14px' },
+      h('button', { class: 'danger', onclick: async () => {
+        try {
+          await api('POST', '/api/account/delete', { password });
+          close();
+          state.user = null; state.musicianProfile = null; state.equipmentOwnerProfile = null;
+          navigate('home', {}, { type: 'success', message: 'Your account has been deleted.' });
+        } catch (err) { showBanner('error', err.message); }
+      } }, 'Yes, delete my account'),
+      h('button', { class: 'secondary', onclick: close }, 'Cancel'))));
+  document.body.appendChild(backdrop);
 }
 
 async function rentalAction(id, path, body) {

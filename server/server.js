@@ -10,6 +10,7 @@ const auth = require('./lib/auth');
 
 const router = new Router();
 require('./routes/auth').register(router);
+require('./routes/account').register(router);
 require('./routes/musicians').register(router);
 require('./routes/bookings').register(router);
 require('./routes/favorites').register(router);
