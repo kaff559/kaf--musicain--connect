@@ -48,7 +48,7 @@ function register(router) {
     const { email, password } = ctx.body;
     if (!email || !password) throw new HttpError(400, 'Email and password are required');
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());
-    if (!user || !auth.verifyPassword(password, user.password_salt, user.password_hash)) {
+    if (!user || !user.password_salt || !user.password_hash || !auth.verifyPassword(password, user.password_salt, user.password_hash)) {
       throw new HttpError(401, 'Invalid email or password');
     }
     const session = auth.createSession(user.id);
