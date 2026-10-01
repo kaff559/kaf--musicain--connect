@@ -27,6 +27,56 @@ const PHOTO_EXT_BY_MIME = {
   'image/webp': '.webp', 'image/gif': '.gif',
 };
 
+// --- Richer profile field validation -------------------------------------
+const VALID_SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'];
+const VALID_COMPENSATION_PREFS = ['paid', 'volunteer', 'either'];
+const VALID_AVAILABILITY_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const VALID_AVAILABILITY_TIMES = ['morning', 'afternoon', 'evening', 'night'];
+
+// Keep only skill-level entries for roles the musician actually has checked,
+// with a recognized level value — prevents stale/garbage keys from piling up
+// in the JSON column as a profile's instrument list changes over time.
+function sanitizeSkillLevels(input, instruments) {
+  const out = {};
+  if (!input || typeof input !== 'object') return out;
+  const roles = new Set(Array.isArray(instruments) ? instruments : []);
+  for (const [role, level] of Object.entries(input)) {
+    if (roles.has(role) && VALID_SKILL_LEVELS.includes(level)) out[role] = level;
+  }
+  return out;
+}
+
+function sanitizeAvailabilitySchedule(input) {
+  const out = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const day of VALID_AVAILABILITY_DAYS) {
+    const list = Array.isArray(input[day]) ? input[day].filter((t) => VALID_AVAILABILITY_TIMES.includes(t)) : [];
+    if (list.length) out[day] = [...new Set(list)];
+  }
+  return out;
+}
+
+// Cap list length and field size so a client can't balloon the JSON column.
+function sanitizeBlackoutDates(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((d) => d && typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+    .slice(0, 50)
+    .map((d) => ({ date: d.date, note: typeof d.note === 'string' ? d.note.slice(0, 200) : '' }));
+}
+
+function sanitizeReferences(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((r) => r && typeof r.name === 'string' && r.name.trim())
+    .slice(0, 10)
+    .map((r) => ({
+      name: r.name.trim().slice(0, 100),
+      relationship: typeof r.relationship === 'string' ? r.relationship.trim().slice(0, 100) : '',
+      contact: typeof r.contact === 'string' ? r.contact.trim().slice(0, 150) : '',
+    }));
+}
+
 function haversineMiles(lat1, lon1, lat2, lon2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const R = 3958.8;
@@ -69,6 +119,9 @@ function register(router) {
     const emergencyOnly = ctx.query.emergency === '1' || ctx.query.emergency === 'true';
     const category = ctx.query.category || null;
     const eventType = ctx.query.eventType || null;
+    const compensationPreference = ctx.query.compensationPreference || null;
+    const ownsEquipmentOnly = ctx.query.ownsEquipment === '1' || ctx.query.ownsEquipment === 'true';
+    const minYearsExperience = ctx.query.minYearsExperience ? parseInt(ctx.query.minYearsExperience, 10) : null;
     const parsed = parseSmartQuery(q);
     const maxRate = explicitMaxRate != null && !Number.isNaN(explicitMaxRate) ? explicitMaxRate : parsed.maxRate;
 
@@ -85,6 +138,13 @@ function register(router) {
     if (explicitCity) rows = rows.filter((r) => (r.city || '').toLowerCase().includes(String(explicitCity).toLowerCase()));
     if (explicitCountry) rows = rows.filter((r) => (r.country || '').toLowerCase().includes(String(explicitCountry).toLowerCase()));
     if (emergencyOnly) rows = rows.filter((r) => !!r.emergency_available);
+    if (compensationPreference) {
+      rows = rows.filter((r) => (r.compensation_preference || 'paid') === compensationPreference || (r.compensation_preference || 'paid') === 'either');
+    }
+    if (ownsEquipmentOnly) rows = rows.filter((r) => !!r.owns_equipment);
+    if (minYearsExperience != null && !Number.isNaN(minYearsExperience)) {
+      rows = rows.filter((r) => (r.years_experience || 0) >= minYearsExperience);
+    }
 
     // Exact-match category filter (a role/instrument picked from the
     // checklist, e.g. "DJ" or "Lead vocalist") — distinct from the fuzzy
@@ -164,12 +224,33 @@ function register(router) {
     const p = db.prepare('SELECT * FROM musician_profiles WHERE user_id = ?').get(user.id);
     if (!p) throw new HttpError(404, 'Profile not found');
     const b = ctx.body;
+    const instruments = Array.isArray(b.instruments) ? b.instruments : parseJsonSafe(p.instruments, []);
+    if (b.compensationPreference != null && !VALID_COMPENSATION_PREFS.includes(b.compensationPreference)) {
+      throw new HttpError(400, 'Invalid compensation preference');
+    }
+    let travelRadiusMiles = p.travel_radius_miles;
+    if (b.travelRadiusMiles !== undefined) {
+      travelRadiusMiles = b.travelRadiusMiles === '' || b.travelRadiusMiles == null ? null : parseFloat(b.travelRadiusMiles);
+      if (travelRadiusMiles != null && (Number.isNaN(travelRadiusMiles) || travelRadiusMiles < 0)) {
+        throw new HttpError(400, 'Travel radius must be a positive number');
+      }
+    }
+    let yearsExperience = p.years_experience;
+    if (b.yearsExperience !== undefined) {
+      yearsExperience = b.yearsExperience === '' || b.yearsExperience == null ? null : parseInt(b.yearsExperience, 10);
+      if (yearsExperience != null && (Number.isNaN(yearsExperience) || yearsExperience < 0)) {
+        throw new HttpError(400, 'Years of experience must be a positive number');
+      }
+    }
     db.prepare(
       `UPDATE musician_profiles SET stage_name=?, instruments=?, genres=?, bio=?, hourly_rate=?, city=?, state=?, country=?,
-       lat=?, lng=?, emergency_available=?, has_insurance=?, media_urls=?, video_url=?, event_types=? WHERE id=?`
+       lat=?, lng=?, emergency_available=?, has_insurance=?, media_urls=?, video_url=?, event_types=?,
+       skill_levels=?, years_experience=?, reads_chord_charts=?, reads_nashville_numbers=?, reads_sheet_music=?,
+       owns_equipment=?, can_lead_rehearsals=?, availability_schedule=?, blackout_dates=?, compensation_preference=?,
+       travel_radius_miles=?, reference_list=? WHERE id=?`
     ).run(
       b.stageName || p.stage_name,
-      JSON.stringify(Array.isArray(b.instruments) ? b.instruments : parseJsonSafe(p.instruments, [])),
+      JSON.stringify(instruments),
       JSON.stringify(Array.isArray(b.genres) ? b.genres : parseJsonSafe(p.genres, [])),
       b.bio != null ? b.bio : p.bio,
       b.hourlyRate != null ? parseFloat(b.hourlyRate) : p.hourly_rate,
@@ -183,6 +264,18 @@ function register(router) {
       JSON.stringify(Array.isArray(b.mediaUrls) ? b.mediaUrls : parseJsonSafe(p.media_urls, [])),
       b.videoUrl != null ? b.videoUrl : p.video_url,
       JSON.stringify(Array.isArray(b.eventTypes) ? b.eventTypes : parseJsonSafe(p.event_types, [])),
+      JSON.stringify(b.skillLevels !== undefined ? sanitizeSkillLevels(b.skillLevels, instruments) : parseJsonSafe(p.skill_levels, {})),
+      yearsExperience,
+      b.readsChordCharts != null ? (b.readsChordCharts ? 1 : 0) : p.reads_chord_charts,
+      b.readsNashvilleNumbers != null ? (b.readsNashvilleNumbers ? 1 : 0) : p.reads_nashville_numbers,
+      b.readsSheetMusic != null ? (b.readsSheetMusic ? 1 : 0) : p.reads_sheet_music,
+      b.ownsEquipment != null ? (b.ownsEquipment ? 1 : 0) : p.owns_equipment,
+      b.canLeadRehearsals != null ? (b.canLeadRehearsals ? 1 : 0) : p.can_lead_rehearsals,
+      JSON.stringify(b.availabilitySchedule !== undefined ? sanitizeAvailabilitySchedule(b.availabilitySchedule) : parseJsonSafe(p.availability_schedule, {})),
+      JSON.stringify(b.blackoutDates !== undefined ? sanitizeBlackoutDates(b.blackoutDates) : parseJsonSafe(p.blackout_dates, [])),
+      b.compensationPreference || p.compensation_preference || 'paid',
+      travelRadiusMiles,
+      JSON.stringify(b.references !== undefined ? sanitizeReferences(b.references) : parseJsonSafe(p.reference_list, [])),
       p.id
     );
     const updated = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(p.id);

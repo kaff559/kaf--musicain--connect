@@ -145,6 +145,11 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
 .pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text); }
 .checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 10px; }
+.availability-table { border-collapse: collapse; width: 100%; min-width: 420px; }
+.availability-table th, .availability-table td { text-align: center; padding: 4px 8px; font-size: 13px; color: var(--text); }
+.availability-table th { color: var(--muted); font-weight: 500; }
+.availability-table td:first-child, .availability-table th:first-child { text-align: left; color: var(--muted); }
+.availability-table tbody tr:nth-child(odd) { background: var(--bg2); }
 
 /* ---------- profile photos ---------- */
 .avatar {

@@ -748,6 +748,14 @@ const EVENT_TYPES = [
 ];
 function eventTypeLabel(key) { const m = EVENT_TYPES.find(([k]) => k === key); return m ? m[1] : key; }
 
+/* ---------- richer talent profile vocab ---------- */
+const SKILL_LEVELS = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced'], ['expert', 'Expert']];
+function skillLevelLabel(key) { const m = SKILL_LEVELS.find(([k]) => k === key); return m ? m[1] : key; }
+const COMPENSATION_PREFS = [['paid', 'Paid gigs only'], ['volunteer', 'Volunteer only'], ['either', 'Either — paid or volunteer']];
+function compensationPrefLabel(key) { const m = COMPENSATION_PREFS.find(([k]) => k === key); return m ? m[1] : key; }
+const AVAILABILITY_DAYS = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+const AVAILABILITY_TIMES = [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['evening', 'Evening'], ['night', 'Night']];
+
 // Reusable checkbox-group control: `options` is an array of either plain
 // strings or [value, label] pairs; `selected` is the live array to mutate
 // in place (so the caller's closure variable stays in sync without a
@@ -1029,6 +1037,9 @@ function BrowseMusiciansPage() {
   let category = state.params.category || '';
   let eventType = state.params.eventType || '';
   let emergency = false;
+  let compensationPreference = state.params.compensationPreference || '';
+  let ownsEquipment = false;
+  let minYearsExperience = state.params.minYearsExperience || '';
   const locationStatus = h('span', { class: 'muted' },
     state.params.lat ? `Using your location — searching by real distance worldwide, based on each talent's own set location.` : '');
 
@@ -1041,6 +1052,9 @@ function BrowseMusiciansPage() {
     if (emergency) qs.set('emergency', '1');
     if (category) qs.set('category', category);
     if (eventType) qs.set('eventType', eventType);
+    if (compensationPreference) qs.set('compensationPreference', compensationPreference);
+    if (ownsEquipment) qs.set('ownsEquipment', '1');
+    if (minYearsExperience) qs.set('minYearsExperience', minYearsExperience);
     if (radius && state.params.lat && state.params.lng) {
       qs.set('radius', radius);
       qs.set('lat', state.params.lat);
@@ -1053,6 +1067,8 @@ function BrowseMusiciansPage() {
     state.params.radius = radius;
     state.params.category = category;
     state.params.eventType = eventType;
+    state.params.compensationPreference = compensationPreference;
+    state.params.minYearsExperience = minYearsExperience;
     state.params.qs = qs.toString() ? `?${qs}` : '';
     loadPageData();
   }
@@ -1126,6 +1142,15 @@ function BrowseMusiciansPage() {
       h('button', { type: 'button', class: 'secondary', title: 'Works worldwide — distance is measured using each talent\'s own set location. Talent who haven\'t set a location are always included regardless of radius.', onclick: useMyLocation }, 'Search near me'),
       locationStatus,
       h('button', { onclick: doSearch }, 'Search')
+    ),
+    h('div', { class: 'row', style: 'margin-top:10px' },
+      h('select', { style: 'max-width:180px', onchange: (e) => { compensationPreference = e.target.value; doSearch(); } },
+        h('option', { value: '' }, 'Paid or volunteer'),
+        COMPENSATION_PREFS.map(([k, label]) => h('option', { value: k, selected: compensationPreference === k }, label))),
+      h('label', { style: 'display:flex;align-items:center;gap:6px;margin:0;font-weight:400;color:var(--text)' },
+        h('input', { type: 'checkbox', style: 'width:auto', onchange: (e) => { ownsEquipment = e.target.checked; doSearch(); } }), 'Owns their own equipment'),
+      h('input', { type: 'number', min: 0, placeholder: 'Min. years experience', value: minYearsExperience, style: 'max-width:160px', oninput: (e) => minYearsExperience = e.target.value,
+        onkeydown: (e) => { if (e.key === 'Enter') doSearch(); } })
     )
   );
   wrap.appendChild(searchRow);
@@ -1143,7 +1168,7 @@ function BrowseMusiciansPage() {
         h('p', { class: 'muted', style: 'margin:2px 0 0' }, [p.city, p.state, p.country].filter(Boolean).join(', ') || 'Location not set'),
         h('p', { class: 'stars', style: 'margin:2px 0 0' }, stars(p.avgRating)),
         h('div', { class: 'pill-row', style: 'margin-top:10px' }, (p.instruments || []).slice(0, 4).map((i) => h('span', { class: 'pill' }, i))),
-        h('p', {}, `${money(p.hourlyRate)}/hr`),
+        h('p', {}, `${money(p.hourlyRate)}/hr`, p.yearsExperience != null ? ` · ${p.yearsExperience} yr${p.yearsExperience === 1 ? '' : 's'} exp` : '', p.ownsEquipment ? ' · Owns equipment' : ''),
         p.idVerified ? h('span', { class: 'badge' }, '✓ ID Verified') : null,
         h('div', { style: 'margin-top:10px' }, h('button', { onclick: () => navigate('musicianDetail', { id: p.id }) }, 'View profile'))
       )
@@ -1172,8 +1197,34 @@ function MusicianDetailPage() {
         h('p', { class: 'muted' }, [p.city, p.state, p.country].filter(Boolean).join(', ') || 'Location not set'),
         h('p', { class: 'stars' }, stars(p.avgRating), ` · ${p.reviewCount} review(s)`))),
     h('p', {}, p.bio || 'No bio provided yet.'),
-    h('div', { class: 'pill-row' }, (p.instruments || []).map((i) => h('span', { class: 'pill' }, i)), (p.genres || []).map((g) => h('span', { class: 'pill' }, g))),
+    h('div', { class: 'pill-row' },
+      (p.instruments || []).map((i) => h('span', { class: 'pill' }, p.skillLevels && p.skillLevels[i] ? `${i} (${skillLevelLabel(p.skillLevels[i])})` : i)),
+      (p.genres || []).map((g) => h('span', { class: 'pill' }, g))),
     h('h2', { style: 'margin-top:16px' }, `${money(p.hourlyRate)}/hr`),
+    h('div', { class: 'pill-row', style: 'margin-top:8px' },
+      p.yearsExperience != null ? h('span', { class: 'pill' }, `${p.yearsExperience} yr${p.yearsExperience === 1 ? '' : 's'} experience`) : null,
+      h('span', { class: 'pill' }, compensationPrefLabel(p.compensationPreference)),
+      p.travelRadiusMiles != null ? h('span', { class: 'pill' }, `Travels up to ${p.travelRadiusMiles} mi`) : null,
+      p.ownsEquipment ? h('span', { class: 'pill' }, 'Owns equipment') : null,
+      p.canLeadRehearsals ? h('span', { class: 'pill' }, 'Can lead rehearsals') : null,
+      p.readsChordCharts ? h('span', { class: 'pill' }, 'Reads chord charts') : null,
+      p.readsNashvilleNumbers ? h('span', { class: 'pill' }, 'Reads Nashville numbers') : null,
+      p.readsSheetMusic ? h('span', { class: 'pill' }, 'Reads sheet music') : null),
+    (p.availabilitySchedule && Object.keys(p.availabilitySchedule).length) ? h('div', { style: 'margin:14px 0' },
+      h('label', {}, 'Weekly availability'),
+      h('div', { class: 'pill-row' },
+        AVAILABILITY_DAYS.filter(([d]) => (p.availabilitySchedule[d] || []).length).map(([d, dLabel]) =>
+          h('span', { class: 'pill' }, `${dLabel}: ${p.availabilitySchedule[d].map((t) => AVAILABILITY_TIMES.find(([k]) => k === t)[1]).join('/')}`)))
+    ) : null,
+    (p.blackoutDates && p.blackoutDates.length) ? h('div', { style: 'margin:10px 0' },
+      h('label', {}, 'Known unavailable dates'),
+      h('div', { class: 'pill-row' }, p.blackoutDates.slice(0, 8).map((bd) => h('span', { class: 'pill' }, bd.date)))
+    ) : null,
+    (p.references && p.references.length && state.user) ? h('div', { style: 'margin:10px 0' },
+      h('label', {}, 'References'),
+      p.references.map((r) => h('p', { class: 'muted', style: 'margin:2px 0' },
+        `${r.name}${r.relationship ? ` (${r.relationship})` : ''}${state.user.role === 'client' && r.contact ? ` — ${r.contact}` : ''}`))
+    ) : null,
     (p.videoUrl || (p.mediaUrls && p.mediaUrls.length)) ? h('div', { style: 'margin:12px 0' },
       h('label', {}, 'Demo'),
       p.videoUrl ? h('p', {}, h('a', { href: p.videoUrl, target: '_blank', rel: 'noopener noreferrer' }, '▶ Watch/listen to demo')) : null,
@@ -1551,7 +1602,18 @@ function MusicianProfileForm() {
     eventTypes: [...(p.eventTypes || [])],
     videoUrl: p.videoUrl || '', mediaUrls: [...(p.mediaUrls || [])],
     photoUrl: p.photoUrl || null,
+    skillLevels: { ...(p.skillLevels || {}) },
+    yearsExperience: p.yearsExperience != null ? p.yearsExperience : '',
+    readsChordCharts: !!p.readsChordCharts, readsNashvilleNumbers: !!p.readsNashvilleNumbers, readsSheetMusic: !!p.readsSheetMusic,
+    ownsEquipment: !!p.ownsEquipment, canLeadRehearsals: !!p.canLeadRehearsals,
+    compensationPreference: p.compensationPreference || 'paid',
+    travelRadiusMiles: p.travelRadiusMiles != null ? p.travelRadiusMiles : '',
+    availabilitySchedule: AVAILABILITY_DAYS.reduce((acc, [d]) => { acc[d] = [...((p.availabilitySchedule || {})[d] || [])]; return acc; }, {}),
+    blackoutDates: (p.blackoutDates || []).map((d) => ({ ...d })),
+    references: (p.references || []).map((r) => ({ ...r })),
   };
+  let newBlackout = { date: '', note: '' };
+  let newReference = { name: '', relationship: '', contact: '' };
   const wrap = h('div', {});
   const rerender = () => { clear(wrap); wrap.appendChild(build()); };
   let uploadingDemo = false;
@@ -1706,8 +1768,102 @@ function MusicianProfileForm() {
       h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
         TALENT_CATEGORY_GROUPS.map(([group, opts]) => h('div', { style: 'margin-bottom:10px' },
           h('strong', {}, group),
-          CheckboxGroup(opts, v.instruments)))),
+          CheckboxGroup(opts, v.instruments, rerender)))),
+      h('label', {}, 'Skill level per role — optional, helps clients gauge fit'),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
+        v.instruments.length
+          ? v.instruments.map((role) => h('div', { class: 'row', style: 'align-items:center;gap:10px;margin-bottom:6px' },
+              h('span', { style: 'min-width:160px' }, role),
+              h('select', { onchange: (e) => { v.skillLevels[role] = e.target.value; } },
+                h('option', { value: '', selected: !v.skillLevels[role] }, 'Not set'),
+                SKILL_LEVELS.map(([k, label]) => h('option', { value: k, selected: v.skillLevels[role] === k }, label)))
+            ))
+          : h('p', { class: 'muted' }, 'Check a role above to set its skill level.')),
       h('label', {}, 'Genres (comma-separated)'), h('input', { value: v.genres, oninput: (e) => v.genres = e.target.value }),
+      h('label', {}, 'Years of experience'),
+      h('input', { type: 'number', min: 0, value: v.yearsExperience, oninput: (e) => v.yearsExperience = e.target.value }),
+      h('label', {}, 'Reading ability'),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
+        h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
+          h('input', { type: 'checkbox', style: 'width:auto', checked: v.readsChordCharts, onchange: (e) => v.readsChordCharts = e.target.checked }), 'Reads chord charts'),
+        h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
+          h('input', { type: 'checkbox', style: 'width:auto', checked: v.readsNashvilleNumbers, onchange: (e) => v.readsNashvilleNumbers = e.target.checked }), 'Reads Nashville numbers'),
+        h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
+          h('input', { type: 'checkbox', style: 'width:auto', checked: v.readsSheetMusic, onchange: (e) => v.readsSheetMusic = e.target.checked }), 'Reads sheet music')),
+      h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
+        h('input', { type: 'checkbox', style: 'width:auto', checked: v.ownsEquipment, onchange: (e) => v.ownsEquipment = e.target.checked }), 'I own my own equipment/instrument'),
+      h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
+        h('input', { type: 'checkbox', style: 'width:auto', checked: v.canLeadRehearsals, onchange: (e) => v.canLeadRehearsals = e.target.checked }), 'Able to lead rehearsals'),
+      h('label', {}, 'Compensation preference'),
+      h('select', { onchange: (e) => v.compensationPreference = e.target.value },
+        COMPENSATION_PREFS.map(([k, label]) => h('option', { value: k, selected: v.compensationPreference === k }, label))),
+      h('label', {}, 'Travel radius (miles) — leave blank for no stated limit'),
+      h('input', { type: 'number', min: 0, value: v.travelRadiusMiles, oninput: (e) => v.travelRadiusMiles = e.target.value }),
+      h('label', {}, "Weekly availability — check the times you're generally free"),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px;overflow-x:auto' },
+        h('table', { class: 'availability-table' },
+          h('thead', {}, h('tr', {}, h('th', {}, ''), AVAILABILITY_TIMES.map(([, label]) => h('th', {}, label)))),
+          h('tbody', {},
+            AVAILABILITY_DAYS.map(([dKey, dLabel]) => h('tr', {},
+              h('td', {}, dLabel),
+              AVAILABILITY_TIMES.map(([tKey]) => h('td', {},
+                h('input', {
+                  type: 'checkbox',
+                  checked: (v.availabilitySchedule[dKey] || []).includes(tKey),
+                  onchange: (e) => {
+                    const list = v.availabilitySchedule[dKey] || (v.availabilitySchedule[dKey] = []);
+                    if (e.target.checked) { if (!list.includes(tKey)) list.push(tKey); }
+                    else { const i = list.indexOf(tKey); if (i !== -1) list.splice(i, 1); }
+                  },
+                })))
+            ))
+          )
+        )
+      ),
+      h('label', {}, 'Blackout dates — specific dates you are NOT available'),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
+        v.blackoutDates.length
+          ? v.blackoutDates.map((bd, i) => h('div', { class: 'row', style: 'align-items:center;gap:10px;margin-bottom:6px' },
+              h('span', {}, bd.date), bd.note ? h('span', { class: 'muted' }, `— ${bd.note}`) : null,
+              h('button', { type: 'button', class: 'danger', onclick: () => { v.blackoutDates.splice(i, 1); rerender(); } }, 'Remove')
+            ))
+          : h('p', { class: 'muted' }, 'No blackout dates added.'),
+        h('div', { class: 'row', style: 'gap:10px;margin-top:8px;flex-wrap:wrap' },
+          h('input', { type: 'date', value: newBlackout.date, oninput: (e) => newBlackout.date = e.target.value }),
+          h('input', { type: 'text', placeholder: 'Note (optional)', value: newBlackout.note, style: 'flex:1;min-width:140px', oninput: (e) => newBlackout.note = e.target.value }),
+          h('button', {
+            type: 'button', class: 'secondary', onclick: () => {
+              if (!newBlackout.date) return;
+              v.blackoutDates.push({ date: newBlackout.date, note: newBlackout.note });
+              newBlackout = { date: '', note: '' };
+              rerender();
+            },
+          }, 'Add date')
+        )
+      ),
+      h('label', {}, 'References — optional, people who can vouch for your work'),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
+        v.references.length
+          ? v.references.map((ref, i) => h('div', { class: 'row', style: 'align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap' },
+              h('strong', {}, ref.name), ref.relationship ? h('span', { class: 'muted' }, `(${ref.relationship})`) : null,
+              ref.contact ? h('span', { class: 'muted' }, ref.contact) : null,
+              h('button', { type: 'button', class: 'danger', onclick: () => { v.references.splice(i, 1); rerender(); } }, 'Remove')
+            ))
+          : h('p', { class: 'muted' }, 'No references added.'),
+        h('div', { class: 'row', style: 'gap:10px;margin-top:8px;flex-wrap:wrap' },
+          h('input', { type: 'text', placeholder: 'Name', value: newReference.name, style: 'flex:1;min-width:120px', oninput: (e) => newReference.name = e.target.value }),
+          h('input', { type: 'text', placeholder: 'Relationship (e.g. Pastor, Bandleader)', value: newReference.relationship, style: 'flex:1;min-width:140px', oninput: (e) => newReference.relationship = e.target.value }),
+          h('input', { type: 'text', placeholder: 'Phone or email', value: newReference.contact, style: 'flex:1;min-width:140px', oninput: (e) => newReference.contact = e.target.value }),
+          h('button', {
+            type: 'button', class: 'secondary', onclick: () => {
+              if (!newReference.name.trim()) return;
+              v.references.push({ ...newReference });
+              newReference = { name: '', relationship: '', contact: '' };
+              rerender();
+            },
+          }, 'Add reference')
+        )
+      ),
       h('label', {}, 'Demo — link to an existing recording (YouTube, SoundCloud, Instagram, etc.)'),
       h('input', { value: v.videoUrl, placeholder: 'https://...', oninput: (e) => v.videoUrl = e.target.value }),
       h('label', {}, 'Or upload a short demo clip (audio or video, up to 10MB) — you can add either, both, or neither'),

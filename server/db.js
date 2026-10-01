@@ -269,4 +269,27 @@ ensureColumn('equipment_owner_profiles', 'country', 'country TEXT');
 ensureColumn('musician_profiles', 'photo_url', 'photo_url TEXT');
 ensureColumn('equipment_owner_profiles', 'photo_url', 'photo_url TEXT');
 
+// --- Richer talent profile fields ---------------------------------------
+// Per-role skill level, e.g. {"Drums": "expert", "Lead vocalist": "intermediate"}
+// — JSON text column like instruments/genres/media_urls above, keyed by the
+// same role strings used in the instruments list.
+ensureColumn('musician_profiles', 'skill_levels', "skill_levels TEXT NOT NULL DEFAULT '{}'");
+ensureColumn('musician_profiles', 'years_experience', 'years_experience INTEGER');
+ensureColumn('musician_profiles', 'reads_chord_charts', 'reads_chord_charts INTEGER NOT NULL DEFAULT 0');
+ensureColumn('musician_profiles', 'reads_nashville_numbers', 'reads_nashville_numbers INTEGER NOT NULL DEFAULT 0');
+ensureColumn('musician_profiles', 'reads_sheet_music', 'reads_sheet_music INTEGER NOT NULL DEFAULT 0');
+ensureColumn('musician_profiles', 'owns_equipment', 'owns_equipment INTEGER NOT NULL DEFAULT 0');
+ensureColumn('musician_profiles', 'can_lead_rehearsals', 'can_lead_rehearsals INTEGER NOT NULL DEFAULT 0');
+// Recurring weekly availability, e.g. {"mon": ["morning","evening"], "tue": []}
+// — one entry per day of week, each a list of time-of-day blocks.
+ensureColumn('musician_profiles', 'availability_schedule', "availability_schedule TEXT NOT NULL DEFAULT '{}'");
+// Specific dates NOT available, e.g. [{"date":"2026-12-25","note":"Family event"}]
+// — separate from the recurring weekly schedule above.
+ensureColumn('musician_profiles', 'blackout_dates', "blackout_dates TEXT NOT NULL DEFAULT '[]'");
+ensureColumn('musician_profiles', 'compensation_preference', "compensation_preference TEXT NOT NULL DEFAULT 'paid'");
+ensureColumn('musician_profiles', 'travel_radius_miles', 'travel_radius_miles REAL');
+// Column is named reference_list (not `references`) to avoid colliding with
+// the SQL reserved word used elsewhere for foreign keys.
+ensureColumn('musician_profiles', 'reference_list', "reference_list TEXT NOT NULL DEFAULT '[]'");
+
 module.exports = db;
