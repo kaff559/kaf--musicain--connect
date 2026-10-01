@@ -1,8 +1,11 @@
 'use strict';
 
 // Bump this on every deploy so old clients pick up the new app shell instead
-// of being stuck on a stale cache.
-const CACHE_NAME = 'kaf-musician-connect-v2';
+// of being stuck on a stale cache. Bumped to v3 because privacy-policy.html
+// and terms-of-service.html were previously missing from NETWORK_FIRST below
+// and so could get stuck serving a stale cached copy indefinitely — this
+// bump forces every existing client to drop that old cache on next load.
+const CACHE_NAME = 'kaf-musician-connect-v3';
 
 const APP_SHELL = [
   '/manifest.json',
@@ -13,8 +16,10 @@ const APP_SHELL = [
 
 // The app's own code/markup — these change on every deploy, so they're
 // served network-first (see below) rather than cached-first like the icons
-// and manifest above, which rarely change.
-const NETWORK_FIRST = ['/', '/index.html', '/styles.css', '/app.js'];
+// and manifest above, which rarely change. Includes the legal pages: they're
+// static files, but they do get edited (most recently for the parental
+// consent changes), and a visitor shouldn't be stuck reading a stale version.
+const NETWORK_FIRST = ['/', '/index.html', '/styles.css', '/app.js', '/privacy-policy.html', '/terms-of-service.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
