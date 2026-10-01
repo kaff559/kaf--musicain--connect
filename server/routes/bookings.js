@@ -37,11 +37,12 @@ function register(router) {
 
     const info = db.prepare(
       `INSERT INTO bookings (musician_profile_id, client_user_id, event_date, event_time, duration_hours,
-       location, offered_rate, is_emergency, is_group, group_details, service_fee, total, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
+       location, offered_rate, is_emergency, is_group, group_details, service_fee, total, event_type, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
     ).run(
       profile.id, user.id, b.eventDate, b.eventTime || null, duration, b.location || null,
-      offeredRate, b.isEmergency ? 1 : 0, b.isGroup ? 1 : 0, b.groupDetails || null, serviceFee, total
+      offeredRate, b.isEmergency ? 1 : 0, b.isGroup ? 1 : 0, b.groupDetails || null, serviceFee, total,
+      b.eventType || null
     );
     const booking = loadBooking(info.lastInsertRowid);
     notify(profile.user_id, `New${b.isEmergency ? ' EMERGENCY' : ''} booking request from ${user.name} for ${b.eventDate}`, b.isEmergency ? 'urgent' : 'booking');

@@ -43,11 +43,11 @@ class Router {
   }
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
-    const MAX = 5 * 1024 * 1024; // 5MB cap
+    const MAX = maxBytes || 5 * 1024 * 1024; // 5MB cap by default; callers can raise it per-route (e.g. demo file uploads)
     req.on('data', (c) => {
       size += c.length;
       if (size > MAX) {

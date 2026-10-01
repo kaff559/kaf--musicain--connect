@@ -1,33 +1,44 @@
 :root {
-  --primary: #3b82f6;
-  --primary-light: #60a5fa;
-  --primary-dark: #1d4ed8;
-  --accent: #38bdf8;
-  --pink: #0ea5e9;
-  --cyan: #22d3ee;
-  --bg: #0a1128;
-  --bg2: #0f1f45;
-  --card: #142a52;
-  --card-hover: #1b3766;
-  --text: #eef4ff;
-  --muted: #9db8dc;
-  --border: #274870;
-  --danger: #fb4570;
-  --success: #34d399;
+  /* Kaf Musician Connect design system — Houselights (dark) theme.
+     Names on the left are the app's originals so existing rules keep working;
+     values come from the design system's tokens. */
+  --primary: #f0b544;        /* brass — the primary action */
+  --primary-light: #f6c977;  /* brass-text — links, prices, active nav */
+  --primary-dark: #c8901f;
+  --on-primary: #231704;     /* on-brass — text on a brass fill */
+  --accent: #4fc9ae;         /* moss — the talent side */
+  --accent-text: #7fdcc6;    /* moss-text */
+  --pink: #ffc862;           /* brass-hover */
+  --cyan: #7fdcc6;
+  --bg: #14110e;             /* surface-page */
+  --bg2: #0d0b09;            /* surface-sunken */
+  --card: #1e1a16;           /* surface-card */
+  --card-hover: #2a241e;
+  --text: #e9e2d8;           /* ink */
+  --text-strong: #faf6f0;    /* ink-strong */
+  --muted: #a89b8c;          /* ink-muted */
+  --border: #312a23;         /* line-soft */
+  --border-strong: #7b6e5f;  /* line-strong */
+  --focus-ring: #f0b544;
+  --danger: #ff9287;         /* signal-closed */
+  --danger-soft: #361412;
+  --success: #63cc90;        /* signal-open */
+  --success-soft: #0f2a1b;
+  --hold: #79bce8;           /* signal-hold */
+  --hold-soft: #0d2433;
   --radius: 12px;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg);
-  background-image:
-    radial-gradient(circle at 15% 0%, rgba(14, 165, 233, .10) 0, transparent 32%),
-    radial-gradient(circle at 85% 15%, rgba(34, 211, 238, .08) 0, transparent 30%);
-  background-attachment: fixed;
   color: var(--text);
 }
 a { color: var(--primary-light); text-decoration: none; }
+strong, b { color: var(--text-strong); }
 button {
   font-family: inherit;
   cursor: pointer;
@@ -36,15 +47,15 @@ button {
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--pink) 130%);
-  color: #fff;
-  transition: filter .15s, transform .1s;
+  background: var(--primary);
+  color: var(--on-primary);
+  transition: background .15s, transform .1s;
 }
-button:hover { filter: brightness(1.12); }
+button:hover { background: var(--pink); }
 button:active { transform: translateY(1px); }
-button.secondary { background: var(--card-hover); color: var(--primary-light); border: 1px solid var(--border); }
-button.secondary:hover { background: #1c2f66; filter: none; }
-button.danger { background: linear-gradient(135deg, var(--danger) 0%, #c2255c 130%); }
+button.secondary { background: transparent; color: var(--accent-text); border: 2px solid var(--border-strong); }
+button.secondary:hover { background: var(--card-hover); }
+button.danger { background: var(--danger); color: #2a0a07; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 input, select, textarea {
   width: 100%;
@@ -56,12 +67,13 @@ input, select, textarea {
   background: var(--bg2);
   color: var(--text);
 }
-input::placeholder, textarea::placeholder { color: #6f85b0; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59, 130, 246, .25); }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-color: var(--border-strong); box-shadow: none; }
+button:focus-visible, a:focus-visible, .category-tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; margin: 12px 0 4px; }
 .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
 header.topbar {
-  background: rgba(8, 16, 38, .92);
+  background: rgba(20, 17, 14, .94);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
@@ -69,13 +81,14 @@ header.topbar {
 header.topbar .container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
 .brand {
   font-size: 20px; font-weight: 800; cursor: pointer;
-  background: linear-gradient(135deg, var(--primary-light), var(--pink), var(--accent));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  font-family: var(--font-display);
+  letter-spacing: -.01em;
+  color: var(--text-strong);
 }
 .nav-links { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .nav-links button { background: transparent; color: var(--text); font-weight: 500; padding: 8px 12px; }
 .nav-links button:hover { background: var(--card-hover); filter: none; }
-.nav-links button.active { background: rgba(59, 130, 246, .22); color: var(--primary-light); }
+.nav-links button.active { background: var(--card-hover); color: var(--primary-light); }
 main { padding: 28px 0 60px; }
 .card {
   background: var(--card);
@@ -83,40 +96,40 @@ main { padding: 28px 0 60px; }
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: 0 8px 24px rgba(8, 4, 24, .28);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 2px 8px rgba(0, 0, 0, .4);
 }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-h1 { font-size: 26px; margin: 0 0 6px; color: var(--text); }
-h2 { font-size: 19px; margin: 0 0 12px; color: var(--text); }
-h3 { font-size: 16px; margin: 0 0 8px; color: var(--text); }
+h1 { font-family: var(--font-display); font-size: 32px; line-height: 1.12; letter-spacing: -.015em; margin: 0 0 6px; color: var(--text-strong); }
+h2 { font-family: var(--font-display); font-size: 22px; line-height: 1.2; margin: 0 0 12px; color: var(--text-strong); }
+h3 { font-size: 17px; margin: 0 0 8px; color: var(--text-strong); font-weight: 600; }
 p.muted, span.muted { color: var(--muted); font-size: 13px; }
 .badge {
   display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
-  background: rgba(59, 130, 246, .22); color: var(--primary-light); text-transform: uppercase; letter-spacing: .03em;
+  background: var(--card-hover); color: var(--primary-light); text-transform: uppercase; letter-spacing: .04em;
 }
-.badge.pending { background: rgba(56, 189, 248, .2); color: var(--accent); }
-.badge.accepted { background: rgba(52, 211, 153, .2); color: var(--success); }
-.badge.declined, .badge.cancelled, .badge.no_show_client, .badge.no_show_musician { background: rgba(251, 69, 112, .2); color: var(--danger); }
-.badge.completed { background: rgba(34, 211, 238, .2); color: var(--cyan); }
-.badge.countered { background: rgba(56, 189, 248, .2); color: var(--accent); }
-.badge.emergency { background: rgba(251, 69, 112, .2); color: var(--danger); }
+.badge.pending { background: var(--hold-soft); color: var(--hold); }
+.badge.accepted { background: var(--success-soft); color: var(--success); }
+.badge.declined, .badge.cancelled, .badge.no_show_client, .badge.no_show_musician { background: var(--danger-soft); color: var(--danger); }
+.badge.completed { background: var(--success-soft); color: var(--success); }
+.badge.countered { background: var(--hold-soft); color: var(--hold); }
+.badge.emergency { background: var(--danger-soft); color: var(--danger); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .row.between { justify-content: space-between; }
-.stars { color: var(--accent); font-size: 14px; }
-.error-box { background: rgba(251, 69, 112, .16); color: #ff9fb8; border: 1px solid rgba(251, 69, 112, .4); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
-.success-box { background: rgba(52, 211, 153, .16); color: #7bf0c4; border: 1px solid rgba(52, 211, 153, .4); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
+.stars { color: var(--primary-light); font-size: 14px; }
+.error-box { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
+.success-box { background: var(--success-soft); color: var(--success); border: 1px solid var(--success); padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; font-size: 14px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .tabs button { background: none; color: var(--muted); border-radius: 0; padding: 10px 14px; font-weight: 600; }
 .tabs button:hover { filter: none; color: var(--text); }
-.tabs button.active { color: var(--primary-light); border-bottom: 2px solid var(--primary); }
+.tabs button.active { color: var(--primary-light); border-bottom: 2px solid var(--primary); background: none; }
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(8, 4, 24, .65); display: flex; align-items: center;
+  position: fixed; inset: 0; background: rgba(13, 11, 9, .72); display: flex; align-items: center;
   justify-content: center; z-index: 100; padding: 20px;
 }
 .modal {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 480px; width: 100%;
   max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 60px rgba(4, 2, 16, .5);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .7);
 }
 .center-form { max-width: 420px; margin: 40px auto; }
 .notif-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -128,18 +141,58 @@ footer.appfoot .footer-link { color: var(--primary-light); text-decoration: none
 footer.appfoot .footer-link:hover { text-decoration: underline; }
 .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; }
 .pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.pill { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+.pill { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text); }
+.checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 10px; }
+
+/* ---------- profile photos ---------- */
+.avatar {
+  border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  background: var(--bg2); border: 1px solid var(--border);
+}
+.avatar-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: var(--accent-text);
+  background: #12332d;
+}
+.avatar-sm { width: 32px; height: 32px; font-size: 12px; }
+.avatar-md { width: 56px; height: 56px; font-size: 18px; }
+.avatar-lg { width: 88px; height: 88px; font-size: 26px; }
+.avatar-xl { width: 120px; height: 120px; font-size: 34px; }
+.musician-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.avatar-upload-row { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+
+/* ---------- photo-forward listing cards (browse grid) ---------- */
+.card.photo-card { padding: 0; overflow: hidden; }
+.card-photo {
+  width: 100%; height: 170px; object-fit: cover; display: block; background: var(--bg2);
+}
+.card-photo-placeholder {
+  display: flex; align-items: center; justify-content: center; font-size: 42px;
+  color: var(--accent-text);
+  background: #12332d;
+}
+.photo-card-body { padding: 16px 18px 18px; }
+.category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+/* .category-tile itself (box shape, hover, text) is defined once, further
+   down, alongside the category-art background-image rules (.cat-drums etc)
+   it's meant to pair with — see "category art (design system: Category
+   asset group)". */
+.nudge-banner {
+  background: #3a2a0f;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; margin-bottom: 14px; font-size: 13px; color: var(--text);
+}
 
 /* ---------- opening-screen backgrounds (home, equipment, login, signup) ---------- */
 .full-bleed { width: 100vw; position: relative; left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw; }
 .gradient-surface {
-  background-color: #081026;
+  background-color: #1c1712;
   background-image:
-    radial-gradient(circle at 12% 20%, rgba(14, 165, 233, .55) 0, transparent 28%),
-    radial-gradient(circle at 88% 15%, rgba(34, 211, 238, .45) 0, transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(56, 189, 248, .30) 0, transparent 35%),
-    radial-gradient(rgba(255,255,255,.14) 1.5px, transparent 1.5px),
-    linear-gradient(135deg, #0c1a4a 0%, #1e40af 50%, #3b82f6 100%);
+    radial-gradient(circle at 12% 18%, rgba(255, 200, 98, .38) 0, transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(240, 181, 68, .26) 0, transparent 28%),
+    radial-gradient(circle at 50% 104%, rgba(79, 201, 174, .18) 0, transparent 38%),
+    radial-gradient(rgba(251, 248, 243, .10) 1.5px, transparent 1.5px),
+    linear-gradient(135deg, #14110e 0%, #2a1d0c 58%, #6f3d03 100%);
   background-size: auto, auto, auto, 22px 22px, auto;
   background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
 }
@@ -208,7 +261,7 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
   left: 50%; bottom: 40px;
   width: 900px; height: 520px;
   transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, rgba(34,211,238,.40) 0%, rgba(59,130,246,.30) 35%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(240,181,68,.40) 0%, rgba(240,181,68,.22) 35%, transparent 70%);
   filter: blur(6px);
   animation: stage-pulse 6s ease-in-out infinite;
   z-index: 0;
@@ -266,7 +319,7 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
   padding-bottom: 50px;
   margin-top: 44px;
   margin-bottom: 8px;
-  background: linear-gradient(180deg, #050b1e 0%, #0f1f45 55%, #0c1a4a 100%);
+  background: linear-gradient(180deg, #0d0b09 0%, #1c1712 55%, #2a1d0c 100%);
 }
 .stage-lights-band .stage-lights-copy {
   position: relative; z-index: 2;
@@ -358,7 +411,7 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
   height: 64px;
   margin-top: auto;
   display: flex;
-  background: linear-gradient(180deg, #eaf2ff 0%, #cfe0fa 100%);
+  background: linear-gradient(180deg, #f7f1e8 0%, #ddd1bd 100%);
   box-shadow: 0 -10px 40px rgba(6, 3, 20, .5);
   border-top: 1px solid rgba(255,255,255,.5);
 }
@@ -372,7 +425,7 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
      keep the same amount visible above it */
   position: absolute; left: 0; right: 0; bottom: 0; height: 164px;
   z-index: 1; pointer-events: none;
-  background: linear-gradient(0deg, rgba(34,211,238,.5) 0%, rgba(14,165,233,.24) 55%, transparent 100%);
+  background: linear-gradient(0deg, rgba(240,181,68,.5) 0%, rgba(240,181,68,.22) 55%, transparent 100%);
   filter: blur(14px);
 }
 /* light continuing past the bottom of the keys, downward onto the page below
@@ -382,18 +435,18 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
   height: 150px;
   margin-top: -24px;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(34,211,238,.4) 0%, rgba(14,165,233,.2) 45%, transparent 100%);
+  background: linear-gradient(180deg, rgba(240,181,68,.4) 0%, rgba(240,181,68,.18) 45%, transparent 100%);
   filter: blur(10px);
 }
 .piano-strip .bk {
   flex: 1;
-  border-right: 1px solid rgba(40, 70, 120, .3);
+  border-right: 1px solid rgba(60, 48, 34, .3);
   position: relative;
 }
 .piano-strip .bk::after {
   content: '';
   position: absolute; top: 0; left: 8%; right: 8%; height: 62%;
-  background: linear-gradient(180deg, #16233f 0%, #0a1120 100%);
+  background: linear-gradient(180deg, #2a241e 0%, #14110e 100%);
   border-radius: 0 0 3px 3px;
   box-shadow: 0 3px 6px rgba(0,0,0,.4);
 }
@@ -412,8 +465,8 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
 .equalizer .bar {
   width: 7px;
   border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, var(--cyan) 0%, var(--primary-light) 55%, var(--pink) 100%);
-  box-shadow: 0 0 10px rgba(59, 130, 246, .55);
+  background: var(--primary);
+  box-shadow: 0 0 10px rgba(240, 181, 68, .5);
   transform-origin: bottom;
   animation: eq-bounce var(--dur, 1.2s) ease-in-out infinite;
   animation-delay: var(--delay, 0s);
@@ -451,10 +504,9 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
 }
 
 .safety-notice {
-  background: rgba(251, 69, 112, .14);
+  background: var(--danger-soft);
   border: 1px solid var(--danger);
-  border-left: 4px solid var(--danger);
-  color: #ff9fb8;
+  color: var(--danger);
   padding: 12px 16px;
   border-radius: var(--radius);
   font-size: 13px;
@@ -500,3 +552,82 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
   .card { padding: 16px; }
   .center-form { margin: 24px auto; }
 }
+
+/* ---------- category art (design system: Category asset group) ---------- */
+.category-tile {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  cursor: pointer;
+  background-color: var(--card);
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-position: top center;
+  background-size: 100% 200px;
+  border: 1px solid var(--border);
+  padding: 216px 16px 16px;
+  color: var(--text);
+}
+.category-tile h3 { font-family: var(--font-display); font-size: 20px; font-weight: 700; margin: 0 0 4px; color: var(--text-strong); }
+.category-tile p { color: var(--muted); }
+.category-tile .cat-explore { color: var(--primary-light); margin-top: 10px; }
+.category-tile:hover { transform: translateY(-3px); filter: none; border-color: var(--border-strong); }
+.cat-drums { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Drums%20and%20percussion%22%3E%20%3Ctitle%3EDrums%20and%20percussion%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%238a4d05%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Ccircle%20cx%3D%22160%22%20cy%3D%22132%22%20r%3D%2250%22%2F%3E%20%20%3Ccircle%20cx%3D%22160%22%20cy%3D%22132%22%20r%3D%2217%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Ccircle%20cx%3D%2272%22%20cy%3D%2292%22%20r%3D%2228%22%2F%3E%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2292%22%20r%3D%2228%22%2F%3E%20%20%3Cellipse%20cx%3D%22160%22%20cy%3D%2244%22%20rx%3D%2246%22%20ry%3D%229%22%2F%3E%20%20%3Cpath%20d%3D%22M160%2053v22%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-guitar { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Guitar%20and%20bass%22%3E%20%3Ctitle%3EGuitar%20and%20bass%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%231b5a86%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Cpath%20d%3D%22M160%2068c40%200%2052%2016%2052%2034%200%2016-24%2018-24%2030%200%2014%2028%2018%2028%2032%200%2016-24%2024-56%2024s-56-8-56-24c0-14%2028-18%2028-32%200-12-24-14-24-30%200-18%2012-34%2052-34z%22%2F%3E%20%20%3Ccircle%20cx%3D%22160%22%20cy%3D%22108%22%20r%3D%2212%22%2F%3E%20%20%3Cpath%20d%3D%22M160%2068V32%22%2F%3E%20%20%3Crect%20x%3D%22146%22%20y%3D%2214%22%20width%3D%2228%22%20height%3D%2218%22%20rx%3D%226%22%2F%3E%20%20%3Crect%20x%3D%22134%22%20y%3D%22150%22%20width%3D%2252%22%20height%3D%2212%22%20rx%3D%226%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-vocals { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Vocals%22%3E%20%3Ctitle%3EVocals%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%230f5d50%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Crect%20x%3D%22138%22%20y%3D%2230%22%20width%3D%2244%22%20height%3D%2282%22%20rx%3D%2222%22%2F%3E%20%20%3Cpath%20d%3D%22M114%2092a46%2046%200%200%200%2092%200%22%2F%3E%20%20%3Cpath%20d%3D%22M160%20138v28%22%2F%3E%20%20%3Cpath%20d%3D%22M132%20172h56%22%2F%3E%20%20%3Cpath%20d%3D%22M148%2052h24M148%2070h24%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-keys { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Keys%20and%20piano%22%3E%20%3Ctitle%3EKeys%20and%20piano%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%237a4405%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Crect%20x%3D%2242%22%20y%3D%2256%22%20width%3D%22236%22%20height%3D%2296%22%20rx%3D%228%22%2F%3E%20%20%3Cpath%20d%3D%22M89%2056v96M136%2056v96M184%2056v96M231%2056v96%22%2F%3E%20%20%3Cpath%20d%3D%22M89%2056v54M136%2056v54M184%2056v54M231%2056v54%22%20stroke-width%3D%2220%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-dj { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22DJs%22%3E%20%3Ctitle%3EDJs%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%231b5a86%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Ccircle%20cx%3D%22116%22%20cy%3D%22102%22%20r%3D%2252%22%2F%3E%20%20%3Ccircle%20cx%3D%22116%22%20cy%3D%22102%22%20r%3D%2220%22%2F%3E%20%20%3Ccircle%20cx%3D%22116%22%20cy%3D%22102%22%20r%3D%226%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Cpath%20d%3D%22M232%2040v36l-62%2040%22%2F%3E%20%20%3Cpath%20d%3D%22M232%20132v44M272%20118v58%22%2F%3E%20%20%3Crect%20x%3D%22216%22%20y%3D%22140%22%20width%3D%2232%22%20height%3D%2216%22%20rx%3D%228%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Crect%20x%3D%22256%22%20y%3D%22152%22%20width%3D%2232%22%20height%3D%2216%22%20rx%3D%228%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-horns { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Horns%20and%20woodwinds%22%3E%20%3Ctitle%3EHorns%20and%20woodwinds%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%230a4a40%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Cpath%20d%3D%22M54%20118h158%22%2F%3E%20%20%3Cpath%20d%3D%22M212%2084l58-28v124l-58-28z%22%2F%3E%20%20%3Cpath%20d%3D%22M96%20118V74M136%20118V74M176%20118V74%22%2F%3E%20%20%3Crect%20x%3D%2286%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2218%22%20rx%3D%226%22%2F%3E%20%20%3Crect%20x%3D%22126%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2218%22%20rx%3D%226%22%2F%3E%20%20%3Crect%20x%3D%22166%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2218%22%20rx%3D%226%22%2F%3E%20%20%3Ccircle%20cx%3D%2248%22%20cy%3D%22118%22%20r%3D%2212%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-mixing { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Mixing%20and%20sound%22%3E%20%3Ctitle%3EMixing%20and%20sound%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%238a4d05%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Cpath%20d%3D%22M72%2044v112M124%2044v112M176%2044v112M228%2044v112%22%2F%3E%20%20%3Crect%20x%3D%2256%22%20y%3D%22104%22%20width%3D%2232%22%20height%3D%2218%22%20rx%3D%226%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Crect%20x%3D%22108%22%20y%3D%2262%22%20width%3D%2232%22%20height%3D%2218%22%20rx%3D%226%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Crect%20x%3D%22160%22%20y%3D%22126%22%20width%3D%2232%22%20height%3D%2218%22%20rx%3D%226%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%20%3Crect%20x%3D%22212%22%20y%3D%2284%22%20width%3D%2232%22%20height%3D%2218%22%20rx%3D%226%22%20fill%3D%22%23fbf8f3%22%20stroke%3D%22none%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-stage { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Stage%20and%20lighting%22%3E%20%3Ctitle%3EStage%20and%20lighting%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%230a4a40%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Cpath%20d%3D%22M30%2034h260%22%2F%3E%20%20%3Cpath%20d%3D%22M160%2034v14%22%2F%3E%20%20%3Crect%20x%3D%22124%22%20y%3D%2248%22%20width%3D%2272%22%20height%3D%2248%22%20rx%3D%2212%22%2F%3E%20%20%3Cpath%20d%3D%22M128%20100%2074%20168M192%20100l54%2068%22%2F%3E%20%20%3Cellipse%20cx%3D%22160%22%20cy%3D%22176%22%20rx%3D%2286%22%20ry%3D%2210%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+.cat-dance { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20200%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%20role%3D%22img%22%20aria-label%3D%22Dance%20and%20performance%22%3E%20%3Ctitle%3EDance%20and%20performance%3C%2Ftitle%3E%20%3Crect%20width%3D%22320%22%20height%3D%22200%22%20fill%3D%22%230f5d50%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fbf8f3%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%20%20%3Ccircle%20cx%3D%22146%22%20cy%3D%2242%22%20r%3D%2215%22%2F%3E%20%20%3Cpath%20d%3D%22M146%2060l-8%2054%22%2F%3E%20%20%3Cpath%20d%3D%22M100%2096l38-20%2052-30%22%2F%3E%20%20%3Cpath%20d%3D%22M138%20114l-30%2058M138%20114l42%2030%2010%2030%22%2F%3E%20%20%3Cpath%20d%3D%22M238%2046a58%2058%200%200%201%200%20110%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E"); }
+
+/* Real gear photos in place of the illustration, for the categories we have
+   actual photos for. The .cat-* illustrations above rely on background-size:
+   100% 118px plus the SVG's own preserveAspectRatio="slice" to fill exactly
+   the top 118px art strip without distortion — that slice trick only works
+   for the SVG's internal coordinate system, not a plain raster photo, and a
+   photo set directly as .category-tile's background with background-size:
+   cover would cover the tile's FULL padded height, not just that top strip.
+   So instead: turn off the tile's own background-image for these three and
+   pin the photo to an absolutely-positioned ::before capped at the same
+   art-area height as .category-tile's background-size above, with
+   cover+position doing the crop safely within that fixed box. */
+.category-tile.cat-drums-photo,
+.category-tile.cat-keys-photo,
+.category-tile.cat-mixing-photo,
+.category-tile.cat-guitar-photo,
+.category-tile.cat-vocals-photo,
+.category-tile.cat-bass-photo,
+.category-tile.cat-dj-photo,
+.category-tile.cat-mc-photo,
+.category-tile.cat-horns-photo {
+  background-image: none;
+}
+.cat-drums-photo::before,
+.cat-keys-photo::before,
+.cat-mixing-photo::before,
+.cat-guitar-photo::before,
+.cat-vocals-photo::before,
+.cat-bass-photo::before,
+.cat-dj-photo::before,
+.cat-mc-photo::before,
+.cat-horns-photo::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 200px;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.cat-drums-photo::before { background-image: url('/images/categories/session-drummers.jpg'); background-position: center 55%; }
+.cat-keys-photo::before { background-image: url('/images/categories/session-keys.jpg'); background-position: center 40%; }
+.cat-mixing-photo::before { background-image: url('/images/categories/sound-engineers.jpg'); background-position: center 35%; }
+.cat-guitar-photo::before { background-image: url('/images/categories/session-guitarists.jpg'); background-position: center 40%; }
+.cat-vocals-photo::before { background-image: url('/images/categories/placeholder-performer.jpg'); background-position: center 30%; }
+.cat-bass-photo::before { background-image: url('/images/categories/session-bassists.jpg'); background-position: center 45%; }
+.cat-dj-photo::before { background-image: url('/images/categories/djs.jpg'); background-position: center 35%; }
+.cat-mc-photo::before { background-image: url('/images/categories/mcs-hosts.jpg'); background-position: center 30%; }
+/* Vocals and Horns are placeholders for now (same photo, user-supplied) —
+   swap these for real vocalist / horn-player photos when available. */
+.cat-horns-photo::before { background-image: url('/images/categories/placeholder-performer.jpg'); background-position: center 25%; }

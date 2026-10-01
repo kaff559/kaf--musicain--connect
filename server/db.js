@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS musician_profiles (
   hourly_rate REAL NOT NULL DEFAULT 0,
   city TEXT,
   state TEXT,
+  -- Free-text so this works for any country's state/province/region naming,
+  -- not just US 2-letter codes.
+  country TEXT,
+  -- Optional self-reported coordinates (set via the browser's geolocation
+  -- API on the profile form, same mechanism as the searcher's own "search
+  -- near me" button) — used for real distance search worldwide instead of
+  -- the old US-only state-centroid approximation. NULL means "distance
+  -- unknown," which radius search treats as "don't exclude."
+  lat REAL,
+  lng REAL,
   emergency_available INTEGER NOT NULL DEFAULT 0,
   has_insurance INTEGER NOT NULL DEFAULT 0,
   id_verified INTEGER NOT NULL DEFAULT 0,
@@ -53,6 +63,11 @@ CREATE TABLE IF NOT EXISTS musician_profiles (
   strikes INTEGER NOT NULL DEFAULT 0,
   media_urls TEXT NOT NULL DEFAULT '[]',
   video_url TEXT,
+  -- Event categories this talent is open to being found for (JSON array of
+  -- keys like "church", "wedding_ceremony", "bar_nightlife", ...). An empty
+  -- array means "open to all event types" — this lets e.g. a worship
+  -- vocalist opt out of ever showing up in bar/nightlife searches.
+  event_types TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -85,6 +100,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   cancellation_reason TEXT,
   no_show_report TEXT,
   no_show_party TEXT,
+  -- What kind of event this booking is for (church, wedding_ceremony, ...) —
+  -- same key set as musician_profiles.event_types. Optional/free-text-ish;
+  -- not enforced against a fixed list at the DB level.
+  event_type TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -124,6 +143,7 @@ CREATE TABLE IF NOT EXISTS equipment_owner_profiles (
   bio TEXT DEFAULT '',
   city TEXT,
   state TEXT,
+  country TEXT,
   id_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -168,12 +188,44 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_bookings_musician ON bookings(musician_profile_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_client ON bookings(client_user_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_equipment ON rentals(equipment_id);
 CREATE INDEX IF NOT EXISTS idx_rentals_client ON rentals(client_user_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_musician ON reviews(musician_profile_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
 `);
+
+// --- Lightweight migrations ---------------------------------------------
+// CREATE TABLE IF NOT EXISTS above only shapes a brand-new database. A
+// database that already existed before a column was added needs that column
+// bolted on explicitly — ALTER TABLE ADD COLUMN, guarded by a check so this
+// is safe to run on every boot (adding an already-present column errors).
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
+ensureColumn('musician_profiles', 'event_types', "event_types TEXT NOT NULL DEFAULT '[]'");
+ensureColumn('bookings', 'event_type', 'event_type TEXT');
+ensureColumn('musician_profiles', 'country', 'country TEXT');
+ensureColumn('musician_profiles', 'lat', 'lat REAL');
+ensureColumn('musician_profiles', 'lng', 'lng REAL');
+ensureColumn('equipment_owner_profiles', 'country', 'country TEXT');
+// Profile picture — a URL under /uploads/avatars/, same pattern as the demo
+// media files (stored on the persistent disk, only the URL lives in the DB).
+ensureColumn('musician_profiles', 'photo_url', 'photo_url TEXT');
+ensureColumn('equipment_owner_profiles', 'photo_url', 'photo_url TEXT');
 
 module.exports = db;

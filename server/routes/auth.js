@@ -73,6 +73,7 @@ function register(router) {
       const p = equipmentOwnerProfileForUser(ctx.user.id);
       result.equipmentOwnerProfile = p ? {
         id: p.id, businessName: p.business_name, bio: p.bio, city: p.city, state: p.state,
+        country: p.country, photoUrl: p.photo_url || null,
         idVerified: !!p.id_verified, createdAt: p.created_at,
       } : null;
     }
