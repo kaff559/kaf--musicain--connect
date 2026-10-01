@@ -20,6 +20,7 @@ function serializeOwnerProfile(p) {
   return {
     id: p.id, businessName: p.business_name, bio: p.bio, city: p.city, state: p.state,
     country: p.country, photoUrl: p.photo_url || null, idVerified: !!p.id_verified,
+    stripeConnected: !!p.stripe_account_id, stripePayoutsEnabled: !!p.stripe_payouts_enabled,
   };
 }
 

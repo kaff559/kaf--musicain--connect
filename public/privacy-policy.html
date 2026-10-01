@@ -173,6 +173,18 @@
       and any resolution notes.</li>
   </ul>
 
+  <h3>Payment information</h3>
+  <p>
+    Card details are collected and processed directly by our payment processor, Stripe — we never
+    see or store your full card number. We do store the booking or rental amount, the payment's
+    status (for example, authorized, charged, refunded, or paid out), and an internal reference id
+    Stripe gives us for that payment. If you create a musician or equipment-owner profile and
+    connect a payout account, Stripe also collects identity and bank-account information directly
+    from you as part of that account-connection process (Stripe Connect) — we only see whether that
+    account is connected and able to receive payouts, not the underlying bank or identity details.
+    See Stripe's own privacy policy for how they handle that information.
+  </p>
+
   <h3>Session &amp; technical information</h3>
   <ul>
     <li>A session token stored in an HttpOnly cookie, used to keep you signed in. It isn't
@@ -183,9 +195,6 @@
 
   <h2>What we don't currently collect or do</h2>
   <ul>
-    <li>We do not currently process real payments. Fees, rates, and deposits are calculated and
-      stored so you can see what a booking would cost, but no payment processor is connected and
-      no money moves through the app yet.</li>
     <li>We do not use third-party advertising networks, ad trackers, or analytics/tracking
       pixels.</li>
     <li>We do not sell your personal information to third parties.</li>

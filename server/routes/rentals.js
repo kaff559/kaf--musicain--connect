@@ -3,6 +3,8 @@
 const db = require('../db');
 const { HttpError } = require('../lib/router');
 const { requireRole, requireAuth, requireConsentCleared, notify, calcServiceFee, serializeRental, equipmentOwnerProfileForUser } = require('../lib/helpers');
+const stripe = require('../lib/stripe');
+const payments = require('../lib/payments');
 
 function daysBetween(start, end) {
   const s = new Date(start + 'T00:00:00Z');
@@ -37,10 +39,45 @@ function register(router) {
       `INSERT INTO rentals (equipment_id, client_user_id, start_date, end_date, daily_rate, days, rental_fee, service_fee, deposit, total, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
     ).run(item.id, user.id, b.startDate, b.endDate, item.daily_rate, days, rentalFee, serviceFee, item.security_deposit, total);
+    const rentalId = info.lastInsertRowid;
+
+    let auth;
+    try {
+      auth = await payments.authorizePayment({
+        amountDollars: total,
+        paymentMethodId: b.paymentMethodId,
+        metadata: { kind: 'rental', rentalId: String(rentalId) },
+      });
+    } catch (err) {
+      db.prepare('DELETE FROM rentals WHERE id = ?').run(rentalId);
+      throw err;
+    }
+    db.prepare('UPDATE rentals SET payment_intent_id = ?, payment_status = ? WHERE id = ?')
+      .run(auth.paymentIntentId, auth.paymentStatus, rentalId);
 
     const owner = db.prepare('SELECT * FROM equipment_owner_profiles WHERE id = ?').get(item.owner_profile_id);
     notify(owner.user_id, `New rental request for "${item.title}" (${b.startDate} to ${b.endDate}) from ${user.name}`, 'rental');
-    return { rental: serializeRental(loadRental(info.lastInsertRowid)) };
+    const result = { rental: serializeRental(loadRental(rentalId)) };
+    if (auth.requiresAction) {
+      result.requiresAction = true;
+      result.clientSecret = auth.clientSecret;
+    }
+    return result;
+  });
+
+  router.post('/api/rentals/:id/confirm-payment', async (ctx) => {
+    const user = requireRole(ctx, 'client');
+    const rental = loadRental(ctx.params.id);
+    if (rental.client_user_id !== user.id) throw new HttpError(403, 'Not your rental');
+    if (rental.payment_status !== 'requires_action') {
+      return { rental: serializeRental(rental) };
+    }
+    const newStatus = await payments.confirmPaymentAfterAction(rental.payment_intent_id);
+    db.prepare("UPDATE rentals SET payment_status = ?, updated_at = datetime('now') WHERE id = ?").run(newStatus, rental.id);
+    if (newStatus === 'failed') {
+      db.prepare("UPDATE rentals SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(rental.id);
+    }
+    return { rental: serializeRental(loadRental(rental.id)) };
   });
 
   router.get('/api/rentals/mine', async (ctx) => {
@@ -69,9 +106,25 @@ function register(router) {
     if (rental.status !== 'pending') throw new HttpError(400, `Rental is already ${rental.status}`);
     const { action } = ctx.body;
     if (!['accept', 'decline'].includes(action)) throw new HttpError(400, 'action must be accept or decline');
+
+    let paymentStatus = rental.payment_status;
+    let moneyNote = '';
+    if (action === 'accept') {
+      if (rental.payment_status === 'requires_action') {
+        throw new HttpError(400, "The client's payment hasn't finished authorizing yet — try again in a moment.");
+      }
+      if (rental.payment_status !== 'authorized') {
+        throw new HttpError(400, 'This rental has no valid payment hold to charge — the client may need to re-request.');
+      }
+      paymentStatus = await payments.capture(rental.payment_intent_id);
+      moneyNote = ` Your card has been charged $${rental.total.toFixed(2)}.`;
+    } else {
+      paymentStatus = await payments.releaseOrRefund(rental.payment_intent_id, rental.payment_status);
+      moneyNote = ' The hold on your card has been released.';
+    }
     const newStatus = action === 'accept' ? 'accepted' : 'declined';
-    db.prepare("UPDATE rentals SET status=?, updated_at=datetime('now') WHERE id=?").run(newStatus, rental.id);
-    notify(rental.client_user_id, `Your rental request for "${item.title}" was ${newStatus}.`, 'rental');
+    db.prepare("UPDATE rentals SET status=?, payment_status=?, updated_at=datetime('now') WHERE id=?").run(newStatus, paymentStatus, rental.id);
+    notify(rental.client_user_id, `Your rental request for "${item.title}" was ${newStatus}.${moneyNote}`, 'rental');
     return { rental: serializeRental(loadRental(rental.id)) };
   });
 
@@ -84,10 +137,12 @@ function register(router) {
     const isOwner = item.owner_profile_id === owner.id;
     if (!isClient && !isOwner) throw new HttpError(403, 'Not your rental');
     if (['cancelled', 'completed', 'declined'].includes(rental.status)) throw new HttpError(400, `Rental is already ${rental.status}`);
-    db.prepare("UPDATE rentals SET status='cancelled', updated_at=datetime('now') WHERE id=?").run(rental.id);
+    const paymentStatus = await payments.releaseOrRefund(rental.payment_intent_id, rental.payment_status);
+    db.prepare("UPDATE rentals SET status='cancelled', payment_status=?, updated_at=datetime('now') WHERE id=?").run(paymentStatus, rental.id);
     const ownerUserId = db.prepare('SELECT user_id FROM equipment_owner_profiles WHERE id=?').get(item.owner_profile_id).user_id;
     const notifyUserId = isClient ? ownerUserId : rental.client_user_id;
-    notify(notifyUserId, `Rental for "${item.title}" was cancelled.`, 'rental');
+    const moneyNote = paymentStatus === 'refunded' ? ' The client has been refunded in full.' : '';
+    notify(notifyUserId, `Rental for "${item.title}" was cancelled.${moneyNote}`, 'rental');
     return { rental: serializeRental(loadRental(rental.id)) };
   });
 
@@ -100,7 +155,48 @@ function register(router) {
     const isOwner = item.owner_profile_id === owner.id;
     if (!isClient && !isOwner) throw new HttpError(403, 'Not your rental');
     if (rental.status !== 'accepted') throw new HttpError(400, 'Only accepted rentals can be marked complete');
-    db.prepare("UPDATE rentals SET status='completed', updated_at=datetime('now') WHERE id=?").run(rental.id);
+
+    const ownerProfile = db.prepare('SELECT * FROM equipment_owner_profiles WHERE id = ?').get(item.owner_profile_id);
+    let paymentStatus = rental.payment_status;
+    let depositRefundId = rental.deposit_refund_id;
+    if (rental.payment_status === 'captured') {
+      // The security deposit is refundable by design (see the "refundable
+      // deposit" copy shown at request time) — return just that portion to
+      // the client; the rental fee itself is what gets paid out below.
+      if (rental.deposit > 0) {
+        try {
+          const refund = await stripe.createRefund({
+            paymentIntentId: rental.payment_intent_id,
+            amount: Math.round(rental.deposit * 100),
+            metadata: { kind: 'rental_deposit', rentalId: String(rental.id) },
+          });
+          depositRefundId = refund.id;
+          notify(rental.client_user_id, `Your $${rental.deposit.toFixed(2)} security deposit for "${item.title}" has been refunded.`, 'success');
+        } catch (err) {
+          console.error(`[rentals] deposit refund failed for rental ${rental.id}:`, err.message);
+          notify(rental.client_user_id, `We couldn't automatically refund your security deposit for "${item.title}" — contact support.`, 'error');
+        }
+      }
+      if (ownerProfile.stripe_account_id && ownerProfile.stripe_payouts_enabled) {
+        try {
+          const payoutAmount = Math.round(rental.rental_fee * 100);
+          const transfer = await stripe.createTransfer({
+            amount: payoutAmount, destination: ownerProfile.stripe_account_id,
+            metadata: { kind: 'rental', rentalId: String(rental.id) },
+          });
+          db.prepare('UPDATE rentals SET transfer_id = ? WHERE id = ?').run(transfer.id, rental.id);
+          paymentStatus = 'transferred';
+          notify(ownerProfile.user_id, `Payout sent for your "${item.title}" rental: $${(payoutAmount / 100).toFixed(2)}.`, 'success');
+        } catch (err) {
+          console.error(`[rentals] payout failed for rental ${rental.id}:`, err.message);
+          notify(ownerProfile.user_id, `We couldn't send your payout for the "${item.title}" rental automatically — contact support.`, 'error');
+        }
+      } else {
+        notify(ownerProfile.user_id, `Connect a Stripe account from your dashboard's Payments tab to receive your payout for the "${item.title}" rental.`, 'info');
+      }
+    }
+    db.prepare("UPDATE rentals SET status='completed', payment_status=?, deposit_refund_id=?, updated_at=datetime('now') WHERE id=?")
+      .run(paymentStatus, depositRefundId, rental.id);
     return { rental: serializeRental(loadRental(rental.id)) };
   });
 }

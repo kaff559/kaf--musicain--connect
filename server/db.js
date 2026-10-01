@@ -321,4 +321,41 @@ CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_hash ON parental_consent_
 CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_user ON parental_consent_tokens(user_id);
 `);
 
+// --- Stripe Connect (seller payouts) --------------------------------------
+// Express account id + a cached payouts-enabled flag per seller profile.
+// Signing up and using the app never requires this — these stay empty until
+// a seller chooses to connect, and nothing here is required for a client or
+// musician/equipment-owner account to exist or be free to create. The flag
+// is refreshed from Stripe (or, in demo/no-API-key mode, set directly) when
+// the seller returns from onboarding — see server/routes/stripe-connect.js
+// and server/lib/stripe.js.
+ensureColumn('musician_profiles', 'stripe_account_id', 'stripe_account_id TEXT');
+ensureColumn('musician_profiles', 'stripe_payouts_enabled', 'stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0');
+ensureColumn('equipment_owner_profiles', 'stripe_account_id', 'stripe_account_id TEXT');
+ensureColumn('equipment_owner_profiles', 'stripe_payouts_enabled', 'stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0');
+
+// --- Stripe payments (charge at acceptance, payout at completion) --------
+// payment_status tracks the money side of a booking/rental separately from
+// its own workflow `status` column:
+//   none            - no payment attached yet (shouldn't happen for a row
+//                      created after this migration, kept as the default so
+//                      old rows don't look like they have a real charge)
+//   requires_action - card needs 3D Secure before the hold can be placed
+//   authorized      - a hold is on the client's card, nothing captured yet
+//   captured        - charged; funds held by the platform until completion
+//   canceled        - the hold was released without ever charging the card
+//   refunded        - captured funds were returned to the client in full
+//   transferred     - the seller's payout for this booking/rental was sent
+//   failed          - the card could not be authorized/captured
+// transfer_id is the Stripe Transfer that paid the seller out (bookings and
+// rentals); rentals also get deposit_refund_id for the separate refund of
+// the refundable security deposit back to the client at completion.
+ensureColumn('bookings', 'payment_intent_id', 'payment_intent_id TEXT');
+ensureColumn('bookings', 'payment_status', "payment_status TEXT NOT NULL DEFAULT 'none'");
+ensureColumn('bookings', 'transfer_id', 'transfer_id TEXT');
+ensureColumn('rentals', 'payment_intent_id', 'payment_intent_id TEXT');
+ensureColumn('rentals', 'payment_status', "payment_status TEXT NOT NULL DEFAULT 'none'");
+ensureColumn('rentals', 'transfer_id', 'transfer_id TEXT');
+ensureColumn('rentals', 'deposit_refund_id', 'deposit_refund_id TEXT');
+
 module.exports = db;

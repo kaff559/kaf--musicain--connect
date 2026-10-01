@@ -3,7 +3,16 @@
 const db = require('../db');
 const { HttpError } = require('./router');
 
-const SERVICE_FEE_RATE = 0.10;
+// Set via an environment variable (Render -> Environment: SERVICE_FEE_RATE,
+// e.g. "0.10" for 10%) rather than hardcoded, so the take rate can be turned
+// on/off without a code change — same "flip a switch later" pattern as
+// STRIPE_SECRET_KEY. Defaults to 0 (free) for now: while the marketplace is
+// still building up both musicians/equipment owners and clients, charging a
+// fee on top would just be friction neither side has a reason to accept
+// yet. A client is charged exactly the rate/rental price with $0 added, and
+// the seller is paid out that same full amount at completion — see
+// server/routes/bookings.js and rentals.js's /complete handlers.
+const SERVICE_FEE_RATE = process.env.SERVICE_FEE_RATE != null ? parseFloat(process.env.SERVICE_FEE_RATE) : 0;
 
 function requireAuth(ctx) {
   if (!ctx.user) throw new HttpError(401, 'Login required');
@@ -91,6 +100,8 @@ function serializeMusicianProfile(p) {
     references: parseJsonSafe(p.reference_list, []),
     reviewCount: stats.cnt || 0,
     avgRating: stats.avg ? Math.round(stats.avg * 10) / 10 : null,
+    stripeConnected: !!p.stripe_account_id,
+    stripePayoutsEnabled: !!p.stripe_payouts_enabled,
     createdAt: p.created_at,
   };
 }
@@ -133,6 +144,7 @@ function serializeBooking(b) {
     cancellationReason: b.cancellation_reason,
     noShowReport: b.no_show_report,
     noShowParty: b.no_show_party,
+    paymentStatus: b.payment_status || 'none',
     createdAt: b.created_at,
     updatedAt: b.updated_at,
   };
@@ -185,6 +197,7 @@ function serializeRental(r) {
     serviceFee: r.service_fee,
     deposit: r.deposit,
     total: r.total,
+    paymentStatus: r.payment_status || 'none',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
