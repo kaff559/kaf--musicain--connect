@@ -624,10 +624,8 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
 .cat-keys-photo::before { background-image: url('/images/categories/session-keys.jpg'); background-position: center 40%; }
 .cat-mixing-photo::before { background-image: url('/images/categories/sound-engineers.jpg'); background-position: center 35%; }
 .cat-guitar-photo::before { background-image: url('/images/categories/session-guitarists.jpg'); background-position: center 40%; }
-.cat-vocals-photo::before { background-image: url('/images/categories/placeholder-performer.jpg'); background-position: center 30%; }
+.cat-vocals-photo::before { background-image: url('/images/categories/lead-vocalists.jpg'); background-position: center 30%; }
 .cat-bass-photo::before { background-image: url('/images/categories/session-bassists.jpg'); background-position: center 45%; }
 .cat-dj-photo::before { background-image: url('/images/categories/djs.jpg'); background-position: center 35%; }
 .cat-mc-photo::before { background-image: url('/images/categories/mcs-hosts.jpg'); background-position: center 30%; }
-/* Vocals and Horns are placeholders for now (same photo, user-supplied) —
-   swap these for real vocalist / horn-player photos when available. */
-.cat-horns-photo::before { background-image: url('/images/categories/placeholder-performer.jpg'); background-position: center 25%; }
+.cat-horns-photo::before { background-image: url('/images/categories/horns-woodwinds.jpg'); background-position: center 25%; }
