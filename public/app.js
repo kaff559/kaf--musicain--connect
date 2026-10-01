@@ -44,6 +44,7 @@ const state = {
   params: {},
   musicians: [],
   equipmentList: [],
+  jobs: [],
   notifications: [],
   unreadCount: 0,
   banner: null, // { type: 'error'|'success', message }
@@ -147,6 +148,7 @@ function Topbar() {
   const links = [];
   links.push(h('button', { class: state.page === 'home' ? 'active' : '', onclick: () => navigate('home') }, 'Find Talent'));
   links.push(h('button', { class: state.page === 'equipmentBrowse' ? 'active' : '', onclick: () => navigate('equipmentBrowse') }, 'Rent Equipment'));
+  links.push(h('button', { class: state.page === 'jobsBrowse' ? 'active' : '', onclick: () => navigate('jobsBrowse') }, 'Job Postings'));
 
   if (state.user) {
     if (state.user.role === 'client') {
@@ -212,6 +214,8 @@ function PageBody() {
     case 'ownerDashboard': return OwnerDashboardPage();
     case 'equipmentBrowse': return EquipmentBrowsePage();
     case 'equipmentDetail': return EquipmentDetailPage();
+    case 'jobsBrowse': return BrowseJobsPage();
+    case 'jobDetail': return JobDetailPage();
     case 'admin': return AdminPage();
     case 'notifications': return NotificationsPage();
     case 'account': return AccountPage();
@@ -236,6 +240,14 @@ async function loadPageData() {
     } else if (state.page === 'equipmentDetail') {
       const data = await api('GET', `/api/equipment/${state.params.id}`);
       state.params.detail = data.equipment;
+      render();
+    } else if (state.page === 'jobsBrowse') {
+      const data = await api('GET', '/api/jobs' + (state.params.qs || ''));
+      state.jobs = data.jobs;
+      render();
+    } else if (state.page === 'jobDetail') {
+      const data = await api('GET', `/api/jobs/${state.params.id}`);
+      state.params.detail = data;
       render();
     } else if (state.page === 'notifications') {
       await refreshNotifications();
@@ -1380,14 +1392,15 @@ function BookingCard(booking, viewerRole) {
 }
 
 /* ================= CLIENT DASHBOARD ================= */
-let clientData = { bookings: [], rentals: [], favorites: [] };
+let clientData = { bookings: [], rentals: [], favorites: [], jobs: [] };
 async function loadClientDashboardData() {
-  const [b, r, f] = await Promise.all([
+  const [b, r, f, j] = await Promise.all([
     api('GET', '/api/bookings/mine'),
     api('GET', '/api/rentals/mine'),
     api('GET', '/api/favorites/mine'),
+    api('GET', '/api/jobs/mine'),
   ]);
-  clientData = { bookings: b.bookings, rentals: r.rentals, favorites: f.profiles };
+  clientData = { bookings: b.bookings, rentals: r.rentals, favorites: f.profiles, jobs: j.jobs };
 }
 
 function ClientDashboardPage() {
@@ -1395,13 +1408,15 @@ function ClientDashboardPage() {
   const wrap = h('div', {});
   wrap.appendChild(h('h1', {}, 'My Dashboard'));
   wrap.appendChild(Tabs([
-    ['bookings', 'My Bookings'], ['rentals', 'My Rentals'], ['favorites', 'Favorites'],
+    ['bookings', 'My Bookings'], ['rentals', 'My Rentals'], ['jobs', 'My Job Postings'], ['favorites', 'Favorites'],
   ], tab, (t) => { state.params.tab = t; render(); }));
 
   if (tab === 'bookings') {
     wrap.appendChild(clientData.bookings.length
       ? h('div', {}, clientData.bookings.map((b) => BookingCard(b, 'client')))
       : h('div', { class: 'empty-state' }, "You haven't requested any bookings yet."));
+  } else if (tab === 'jobs') {
+    wrap.appendChild(ClientJobsSection());
   } else if (tab === 'rentals') {
     wrap.appendChild(clientData.rentals.length
       ? h('div', {}, clientData.rentals.map((r) => RentalCard(r, 'client')))
@@ -1502,19 +1517,23 @@ function RentalCard(r, viewerRole) {
 }
 
 /* ================= MUSICIAN DASHBOARD ================= */
-let musicianData = { bookings: [] };
+let musicianData = { bookings: [], jobResponses: [] };
 async function loadMusicianDashboardData() {
-  const b = await api('GET', '/api/bookings/mine');
-  musicianData = { bookings: b.bookings };
+  const [b, j] = await Promise.all([
+    api('GET', '/api/bookings/mine'),
+    api('GET', '/api/jobs/my-responses'),
+  ]);
+  musicianData = { bookings: b.bookings, jobResponses: j.responses };
 }
 
 function MusicianDashboardPage() {
   const tab = state.params.tab || 'profile';
   const wrap = h('div', {});
   wrap.appendChild(h('h1', {}, 'My Dashboard'));
-  wrap.appendChild(Tabs([['profile', 'My Profile'], ['bookings', 'Incoming Bookings']], tab, (t) => { state.params.tab = t; render(); }));
+  wrap.appendChild(Tabs([['profile', 'My Profile'], ['bookings', 'Incoming Bookings'], ['jobResponses', 'Job Responses']], tab, (t) => { state.params.tab = t; render(); }));
 
   if (tab === 'profile') wrap.appendChild(MusicianProfileForm());
+  else if (tab === 'jobResponses') wrap.appendChild(MusicianJobResponsesSection());
   else wrap.appendChild(musicianData.bookings.length
     ? h('div', {}, musicianData.bookings.map((b) => BookingCard(b, 'musician')))
     : h('div', { class: 'empty-state' }, 'No booking requests yet.'));
@@ -1937,6 +1956,243 @@ function openRentalModal(eq) {
       } }, 'Send request'),
       h('button', { class: 'secondary', onclick: close }, 'Cancel'))));
   document.body.appendChild(backdrop);
+}
+
+/* ================= JOB POSTINGS ================= */
+// A client posts an opening ("need a drummer this Sunday, 8am call time")
+// that any matching talent can browse and respond to — an alternative to
+// the client having to find and directly book one specific musician.
+function JobCard(job, opts) {
+  opts = opts || {};
+  return h('div', { class: 'card' },
+    h('div', { class: 'row between' },
+      h('h3', {}, job.title),
+      h('span', { class: `badge ${job.status}` }, statusLabel(job.status))),
+    h('p', { class: 'muted', style: 'margin:2px 0 0' },
+      `${job.eventDate}${job.eventTime ? ' · ' + job.eventTime : ''}`),
+    h('p', { class: 'muted', style: 'margin:2px 0 0' }, [job.city, job.state, job.country].filter(Boolean).join(', ') || 'Location not set'),
+    h('div', { class: 'pill-row', style: 'margin-top:8px' },
+      job.category ? h('span', { class: 'pill' }, job.category) : null,
+      job.eventType ? h('span', { class: 'pill' }, eventTypeLabel(job.eventType)) : null),
+    job.payRate ? h('p', {}, job.payRate) : null,
+    job.clientName ? h('p', { class: 'muted' }, `Posted by ${job.clientName}`) : null,
+    opts.footer || null);
+}
+
+function BrowseJobsPage() {
+  const wrap = h('div', {});
+  wrap.appendChild(Hero('📋', 'Job postings', 'Openings posted by churches, venues, and event organizers — browse and respond directly.'));
+
+  let q = state.params.q || '';
+  let category = state.params.category || '';
+  let eventType = state.params.eventType || '';
+  let city = state.params.city || '';
+  let stateCode = state.params.stateCode || '';
+  let country = state.params.country || '';
+
+  function doSearch() {
+    const qs = new URLSearchParams();
+    if (q) qs.set('q', q);
+    if (category) qs.set('category', category);
+    if (eventType) qs.set('eventType', eventType);
+    if (city) qs.set('city', city);
+    if (stateCode) qs.set('state', stateCode);
+    if (country) qs.set('country', country);
+    state.params.q = q; state.params.category = category; state.params.eventType = eventType;
+    state.params.city = city; state.params.stateCode = stateCode; state.params.country = country;
+    state.params.qs = qs.toString() ? `?${qs}` : '';
+    loadPageData();
+  }
+
+  wrap.appendChild(h('div', { class: 'card' },
+    h('div', { class: 'row' },
+      h('input', { placeholder: 'Search job postings (title, category, location)...', value: q, style: 'flex:2;min-width:240px',
+        oninput: (e) => q = e.target.value, onkeydown: (e) => { if (e.key === 'Enter') doSearch(); } }),
+      h('select', { style: 'max-width:200px', onchange: (e) => { category = e.target.value; doSearch(); } },
+        h('option', { value: '' }, 'Any role/category'),
+        TALENT_CATEGORY_GROUPS.map(([group, opts]) => h('optgroup', { label: group },
+          opts.map((o) => h('option', { value: o, selected: category === o }, o))))),
+      h('select', { style: 'max-width:200px', onchange: (e) => { eventType = e.target.value; doSearch(); } },
+        h('option', { value: '' }, 'Any event type'),
+        EVENT_TYPES.map(([k, label]) => h('option', { value: k, selected: eventType === k }, label)))
+    ),
+    h('div', { class: 'row', style: 'margin-top:10px' },
+      h('input', { placeholder: 'City', value: city, style: 'max-width:160px', oninput: (e) => city = e.target.value,
+        onkeydown: (e) => { if (e.key === 'Enter') doSearch(); } }),
+      h('input', { placeholder: 'State / region', value: stateCode, style: 'max-width:160px', oninput: (e) => stateCode = e.target.value,
+        onkeydown: (e) => { if (e.key === 'Enter') doSearch(); } }),
+      h('input', { placeholder: 'Country', value: country, style: 'max-width:160px', oninput: (e) => country = e.target.value,
+        onkeydown: (e) => { if (e.key === 'Enter') doSearch(); } }),
+      h('button', { onclick: doSearch }, 'Search')
+    )
+  ));
+
+  const grid = h('div', { class: 'grid' });
+  if (!state.jobs.length) grid.appendChild(h('div', { class: 'empty-state' }, 'No open job postings right now. Try a different search.'));
+  state.jobs.forEach((job) => {
+    grid.appendChild(JobCard(job, {
+      footer: h('div', { style: 'margin-top:10px' }, h('button', { onclick: () => navigate('jobDetail', { id: job.id }) }, 'View & respond')),
+    }));
+  });
+  wrap.appendChild(grid);
+
+  if (state.user && state.user.role === 'client') {
+    wrap.appendChild(h('p', { class: 'muted', style: 'margin-top:10px' },
+      'Looking to post an opening of your own? Head to ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('clientDashboard', { tab: 'jobs' }); } }, 'My Dashboard → My Job Postings'), '.'));
+  }
+  return wrap;
+}
+
+function JobDetailPage() {
+  const detail = state.params.detail;
+  if (!detail) return h('p', {}, 'Loading...');
+  const job = detail.job;
+  const wrap = h('div', {});
+  wrap.appendChild(h('button', { class: 'secondary', onclick: () => navigate('jobsBrowse') }, '← Back to job postings'));
+  wrap.appendChild(h('div', { class: 'card', style: 'margin-top:14px' },
+    h('div', { class: 'row between' }, h('h1', {}, job.title), h('span', { class: `badge ${job.status}` }, statusLabel(job.status))),
+    h('p', { class: 'muted' }, `${job.eventDate}${job.eventTime ? ' · ' + job.eventTime : ''}`),
+    h('p', { class: 'muted' }, [job.city, job.state, job.country].filter(Boolean).join(', ') || 'Location not set'),
+    h('div', { class: 'pill-row', style: 'margin-top:8px' },
+      job.category ? h('span', { class: 'pill' }, job.category) : null,
+      job.eventType ? h('span', { class: 'pill' }, eventTypeLabel(job.eventType)) : null),
+    job.payRate ? h('h3', { style: 'margin-top:10px' }, job.payRate) : null,
+    h('p', { style: 'margin-top:10px' }, job.description || 'No further details provided.'),
+    job.clientName ? h('p', { class: 'muted' }, `Posted by ${job.clientName}`) : null,
+    h('div', { class: 'safety-notice' },
+      '⚠️ Keep all communication and payment on Musician Connect. Confirm event details directly with the poster before you travel or commit time.'),
+    jobResponseAction(job, detail.myResponse)
+  ));
+  return wrap;
+}
+
+function jobResponseAction(job, myResponse) {
+  if (!state.user) {
+    return h('p', { class: 'muted', style: 'margin-top:14px' },
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('login'); } }, 'Log in as talent'), ' to respond to this posting.');
+  }
+  if (state.user.role !== 'musician') return null;
+  if (myResponse) {
+    return h('div', { style: 'margin-top:14px' },
+      h('span', { class: `badge ${myResponse.status}` }, `Your response: ${statusLabel(myResponse.status)}`));
+  }
+  if (job.status !== 'open') {
+    return h('p', { class: 'muted', style: 'margin-top:14px' }, 'This posting is no longer open.');
+  }
+  return h('div', { style: 'margin-top:14px' },
+    h('button', { onclick: () => openJobResponseModal(job) }, 'Respond to this posting'));
+}
+
+function openJobResponseModal(job) {
+  let message = '';
+  const backdrop = h('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) close(); } });
+  function close() { backdrop.remove(); }
+  backdrop.appendChild(h('div', { class: 'modal' },
+    h('h2', {}, `Respond to "${job.title}"`),
+    h('label', {}, 'Message to the poster (optional)'),
+    h('textarea', { rows: 3, oninput: (e) => message = e.target.value }),
+    h('div', { class: 'row', style: 'margin-top:14px' },
+      h('button', { onclick: async () => {
+        try {
+          await api('POST', `/api/jobs/${job.id}/respond`, { message });
+          close();
+          navigate('jobDetail', { id: job.id }, { type: 'success', message: 'Response sent!' });
+        } catch (err) { showBanner('error', err.message); }
+      } }, 'Send response'),
+      h('button', { class: 'secondary', onclick: close }, 'Cancel'))));
+  document.body.appendChild(backdrop);
+}
+
+async function jobAction(id, path, body) {
+  try { await api('POST', `/api/jobs/${id}${path}`, body || {}); showBanner('success', 'Done.'); loadPageData(); }
+  catch (err) { showBanner('error', err.message); }
+}
+
+function NewJobPostingForm() {
+  const v = { title: '', category: '', description: '', eventDate: '', eventTime: '', city: '', state: '', country: '', eventType: '', payRate: '' };
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    try {
+      await api('POST', '/api/jobs', v);
+      showBanner('success', 'Job posting created.');
+      form.reset();
+      loadPageData();
+    } catch (err) { showBanner('error', err.message); }
+  } },
+    h('label', {}, 'Title'), h('input', { required: true, placeholder: 'e.g. Need a drummer this Sunday, 8am call time', oninput: (e) => v.title = e.target.value }),
+    h('label', {}, 'Role / category'),
+    h('select', { onchange: (e) => v.category = e.target.value },
+      h('option', { value: '' }, 'Any / not sure'),
+      TALENT_CATEGORY_GROUPS.map(([group, opts]) => h('optgroup', { label: group },
+        opts.map((o) => h('option', { value: o }, o))))),
+    h('label', {}, 'Event type'),
+    h('select', { onchange: (e) => v.eventType = e.target.value },
+      h('option', { value: '' }, 'Prefer not to say'),
+      EVENT_TYPES.map(([k, label]) => h('option', { value: k }, label))),
+    h('label', {}, 'Event date'), h('input', { type: 'date', required: true, oninput: (e) => v.eventDate = e.target.value }),
+    h('label', {}, 'Call time (optional)'), h('input', { type: 'time', oninput: (e) => v.eventTime = e.target.value }),
+    h('label', {}, 'City'), h('input', { oninput: (e) => v.city = e.target.value }),
+    h('label', {}, 'State / region'), h('input', { oninput: (e) => v.state = e.target.value }),
+    h('label', {}, 'Country'), h('input', { oninput: (e) => v.country = e.target.value }),
+    h('label', {}, 'Pay (optional — e.g. "$150 flat", "$50/hr", "volunteer")'), h('input', { oninput: (e) => v.payRate = e.target.value }),
+    h('label', {}, 'Details'), h('textarea', { rows: 3, oninput: (e) => v.description = e.target.value }),
+    h('div', { style: 'margin-top:12px' }, h('button', { type: 'submit' }, 'Post job')));
+  return form;
+}
+
+function JobPostingWithResponsesCard(job) {
+  const actions = [];
+  if (job.status === 'open') {
+    actions.push(h('button', { class: 'danger', onclick: () => { if (confirm('Close this job posting?')) jobAction(job.id, '/close'); } }, 'Close posting'));
+  }
+  const responseRows = (job.responses || []).map((r) => h('div', { class: 'row between', style: 'padding:8px 0;border-bottom:1px solid var(--border)' },
+    h('div', {},
+      h('div', { class: 'row', style: 'align-items:center;gap:8px' }, Avatar(r.stageName, r.photoUrl, 'avatar-sm'),
+        h('strong', {}, r.stageName), h('span', { class: `badge ${r.status}` }, statusLabel(r.status))),
+      r.hourlyRate ? h('p', { class: 'muted', style: 'margin:2px 0 0' }, `${money(r.hourlyRate)}/hr`) : null,
+      r.message ? h('p', { style: 'margin:4px 0 0' }, r.message) : null),
+    r.status === 'pending' ? h('div', { class: 'row' },
+      h('button', { onclick: () => jobAction(job.id, `/responses/${r.id}/respond`, { action: 'accept' }) }, 'Accept'),
+      h('button', { class: 'danger', onclick: () => jobAction(job.id, `/responses/${r.id}/respond`, { action: 'decline' }) }, 'Decline')) : null));
+
+  return h('div', { class: 'card' },
+    h('div', { class: 'row between' }, h('h3', {}, job.title), h('span', { class: `badge ${job.status}` }, statusLabel(job.status))),
+    h('p', { class: 'muted', style: 'margin:2px 0 0' }, `${job.eventDate}${job.eventTime ? ' · ' + job.eventTime : ''}`),
+    h('p', { class: 'muted', style: 'margin:2px 0 0' }, [job.city, job.state, job.country].filter(Boolean).join(', ') || 'Location not set'),
+    h('div', { class: 'row', style: 'margin-top:8px' }, actions),
+    h('h4', { style: 'margin-top:14px' }, `Responses (${(job.responses || []).length})`),
+    responseRows.length ? h('div', {}, responseRows) : h('p', { class: 'muted' }, 'No responses yet.'));
+}
+
+function ClientJobsSection() {
+  const wrap = h('div', {});
+  wrap.appendChild(h('div', { class: 'card' }, h('h2', {}, 'Post a job'), NewJobPostingForm()));
+  wrap.appendChild(clientData.jobs.length
+    ? h('div', {}, clientData.jobs.map(JobPostingWithResponsesCard))
+    : h('div', { class: 'empty-state' }, "You haven't posted any jobs yet."));
+  return wrap;
+}
+
+function MusicianJobResponsesSection() {
+  const wrap = h('div', {});
+  if (!musicianData.jobResponses.length) {
+    wrap.appendChild(h('div', { class: 'empty-state' },
+      "You haven't responded to any job postings yet. ",
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('jobsBrowse'); } }, 'Browse open postings →')));
+    return wrap;
+  }
+  musicianData.jobResponses.forEach((r) => {
+    wrap.appendChild(h('div', { class: 'card' },
+      h('div', { class: 'row between' },
+        h('h3', {}, r.jobTitle),
+        h('span', { class: `badge ${r.status}` }, statusLabel(r.status))),
+      h('p', { class: 'muted', style: 'margin:2px 0 0' }, `${r.jobEventDate}${r.jobEventTime ? ' · ' + r.jobEventTime : ''}`),
+      h('p', { class: 'muted', style: 'margin:2px 0 0' }, [r.jobCity, r.jobState, r.jobCountry].filter(Boolean).join(', ') || 'Location not set'),
+      r.jobPayRate ? h('p', {}, r.jobPayRate) : null,
+      r.jobStatus !== 'open' && r.status === 'pending' ? h('p', { class: 'muted' }, 'This posting is no longer open.') : null,
+      h('div', { style: 'margin-top:8px' }, h('button', { class: 'secondary', onclick: () => navigate('jobDetail', { id: r.jobPostingId }) }, 'View posting'))));
+  });
+  return wrap;
 }
 
 /* ================= NOTIFICATIONS ================= */

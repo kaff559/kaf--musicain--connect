@@ -111,6 +111,39 @@ function serializeBooking(b) {
   };
 }
 
+function serializeJobPosting(j) {
+  if (!j) return null;
+  return {
+    id: j.id,
+    clientUserId: j.client_user_id,
+    title: j.title,
+    category: j.category,
+    description: j.description,
+    eventDate: j.event_date,
+    eventTime: j.event_time,
+    city: j.city,
+    state: j.state,
+    country: j.country,
+    eventType: j.event_type,
+    payRate: j.pay_rate,
+    status: j.status,
+    createdAt: j.created_at,
+    updatedAt: j.updated_at,
+  };
+}
+
+function serializeJobResponse(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    jobPostingId: r.job_posting_id,
+    musicianProfileId: r.musician_profile_id,
+    message: r.message,
+    status: r.status,
+    createdAt: r.created_at,
+  };
+}
+
 function serializeRental(r) {
   return {
     id: r.id,
@@ -143,4 +176,6 @@ module.exports = {
   serializeEquipment,
   serializeBooking,
   serializeRental,
+  serializeJobPosting,
+  serializeJobResponse,
 };

@@ -188,6 +188,44 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A client posts an opening ("need a drummer this Sunday, 8am call time")
+-- that talent can browse and respond to, as an alternative to the client
+-- having to find and directly book one specific musician themselves.
+CREATE TABLE IF NOT EXISTS job_postings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  -- One of TALENT_CATEGORIES (same list musician profiles tag themselves
+  -- with) so browsing/filtering jobs works the same way search does.
+  category TEXT,
+  description TEXT DEFAULT '',
+  event_date TEXT NOT NULL,
+  event_time TEXT,
+  city TEXT,
+  state TEXT,
+  country TEXT,
+  event_type TEXT,
+  -- Free text on purpose (e.g. "$150 flat", "$50/hr", "volunteer") rather
+  -- than a single numeric rate — postings aren't always an hourly offer.
+  pay_rate TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','filled','cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- A talent's response/application to a job posting. One response per
+-- (posting, musician) pair — the UNIQUE constraint below keeps someone from
+-- flooding a posting with duplicate responses.
+CREATE TABLE IF NOT EXISTS job_responses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_posting_id INTEGER NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  musician_profile_id INTEGER NOT NULL REFERENCES musician_profiles(id) ON DELETE CASCADE,
+  message TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(job_posting_id, musician_profile_id)
+);
+
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -204,6 +242,9 @@ CREATE INDEX IF NOT EXISTS idx_reviews_musician ON reviews(musician_profile_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_job_postings_client ON job_postings(client_user_id);
+CREATE INDEX IF NOT EXISTS idx_job_responses_job ON job_responses(job_posting_id);
+CREATE INDEX IF NOT EXISTS idx_job_responses_musician ON job_responses(musician_profile_id);
 `);
 
 // --- Lightweight migrations ---------------------------------------------

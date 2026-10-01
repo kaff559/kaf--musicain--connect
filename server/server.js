@@ -14,6 +14,7 @@ require('./routes/account').register(router);
 require('./routes/password-reset').register(router);
 require('./routes/musicians').register(router);
 require('./routes/bookings').register(router);
+require('./routes/jobs').register(router);
 require('./routes/favorites').register(router);
 require('./routes/notifications').register(router);
 require('./routes/equipment').register(router);

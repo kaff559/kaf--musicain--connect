@@ -113,6 +113,8 @@ p.muted, span.muted { color: var(--muted); font-size: 13px; }
 .badge.completed { background: var(--success-soft); color: var(--success); }
 .badge.countered { background: var(--hold-soft); color: var(--hold); }
 .badge.emergency { background: var(--danger-soft); color: var(--danger); }
+.badge.open { background: var(--success-soft); color: var(--success); }
+.badge.filled { background: var(--hold-soft); color: var(--hold); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .row.between { justify-content: space-between; }
 .stars { color: var(--primary-light); font-size: 14px; }
