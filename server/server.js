@@ -134,6 +134,7 @@ const server = http.createServer(async (req, res) => {
       const BIG_BODY_ROUTES = [
         '/api/musicians/demo-upload',
         '/api/musicians/photo-upload',
+        '/api/musicians/gallery-upload',
         '/api/equipment-owner/photo-upload',
       ];
       const maxBytes = BIG_BODY_ROUTES.includes(pathname) ? 16 * 1024 * 1024 : undefined;

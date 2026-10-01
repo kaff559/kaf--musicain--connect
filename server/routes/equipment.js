@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../db');
 const { HttpError } = require('../lib/router');
-const { requireRole, equipmentOwnerProfileForUser, serializeEquipment, parseJsonSafe } = require('../lib/helpers');
+const { requireRole, requireConsentCleared, equipmentOwnerProfileForUser, serializeEquipment, parseJsonSafe } = require('../lib/helpers');
 
 // Profile pictures for equipment-owner business accounts — same approach and
 // disk location as musician profile photos (server/routes/musicians.js).
@@ -87,6 +87,7 @@ function register(router) {
 
   router.post('/api/equipment', async (ctx) => {
     const user = requireRole(ctx, 'equipment_owner');
+    requireConsentCleared(user);
     const owner = equipmentOwnerProfileForUser(user.id);
     if (!owner) throw new HttpError(404, 'Equipment owner profile not found');
     const b = ctx.body;

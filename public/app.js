@@ -21,6 +21,48 @@ function h(tag, attrs, ...children) {
 }
 function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
+/* ---------- accessibility: auto-link <label> to its form control ---------- */
+// Most forms in this app render `h('label', {}, 'Text')` immediately
+// followed by its `h('input'/'select'/'textarea', ...)` as a sibling rather
+// than wrapping it, which means a screen reader has no programmatic way to
+// know they're related — clicking the label doesn't focus the control, and
+// the control gets no accessible name (WCAG 1.3.1 / 4.1.2). Hand-editing
+// each of the ~90 label/control pairs across the app (and keeping that
+// correct as forms keep changing) is error-prone, so instead a single
+// MutationObserver walks any newly-rendered DOM and pairs each unlabeled
+// control with its preceding label automatically, generating an id if the
+// control doesn't already have one.
+let _labelIdCounter = 0;
+function linkLabels(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('label:not([for])').forEach((label) => {
+    // Checkbox/radio rows wrap the input inside the label — browsers
+    // associate those natively already.
+    if (label.querySelector('input, select, textarea')) return;
+    let el = label.nextElementSibling;
+    let hops = 0;
+    while (el && hops < 3 && !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+      el = el.nextElementSibling;
+      hops++;
+    }
+    if (!el || !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+    if (!el.id) el.id = `f-${++_labelIdCounter}`;
+    label.setAttribute('for', el.id);
+  });
+}
+const _labelObserver = new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    if (m.addedNodes && m.addedNodes.length) {
+      linkLabels(document.getElementById('app'));
+      break;
+    }
+  }
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const appEl = document.getElementById('app');
+  if (appEl) _labelObserver.observe(appEl, { childList: true, subtree: true });
+});
+
 /* ---------- API helper ---------- */
 async function api(method, path, body) {
   const res = await fetch(path, {
@@ -193,10 +235,22 @@ function render() {
   if (state.banner) {
     main.appendChild(h('div', { class: state.banner.type === 'error' ? 'error-box' : 'success-box' }, state.banner.message));
   }
+  // Persistent (not auto-dismissing) notice for a minor account still
+  // waiting on, or turned down for, guardian approval — shown on every page
+  // while logged in rather than just once at signup, since the restriction
+  // itself is ongoing.
+  if (state.user && state.user.consentStatus === 'pending') {
+    main.appendChild(h('div', { class: 'success-box', role: 'status' },
+      `We emailed ${state.user.guardianName || 'your parent/guardian'} for approval — your account can browse but can't post a profile, apply to jobs, or book anything until they confirm.`));
+  } else if (state.user && state.user.consentStatus === 'denied') {
+    main.appendChild(h('div', { class: 'error-box', role: 'status' },
+      "Your parent/guardian didn't approve this account, so posting and booking are turned off. Contact support if this seems wrong."));
+  }
   main.appendChild(PageBody());
   app.appendChild(main);
   app.appendChild(h('footer', { class: 'appfoot' },
     'Musician Connect — musicians, MCs, DJs & equipment rental, all in one place. ',
+    h('a', { href: '/terms-of-service.html', class: 'footer-link' }, 'Terms of Service'), ' · ',
     h('a', { href: '/privacy-policy.html', class: 'footer-link' }, 'Privacy Policy')
   ));
 }
@@ -208,6 +262,7 @@ function PageBody() {
     case 'signup': return SignupPage();
     case 'forgotPassword': return ForgotPasswordPage();
     case 'resetPassword': return ResetPasswordPage();
+    case 'consent': return ConsentPage();
     case 'musicianDetail': return MusicianDetailPage();
     case 'clientDashboard': return ClientDashboardPage();
     case 'musicianDashboard': return MusicianDashboardPage();
@@ -228,6 +283,14 @@ async function loadPageData() {
     if (state.page === 'home') {
       const data = await api('GET', '/api/musicians' + (state.params.qs || ''));
       state.musicians = data.profiles;
+      render();
+    } else if (state.page === 'consent') {
+      try {
+        const data = await api('GET', `/api/auth/consent/${state.params.token}`);
+        state.params.info = data;
+      } catch (err) {
+        state.params.info = { error: err.message };
+      }
       render();
     } else if (state.page === 'musicianDetail') {
       const data = await api('GET', `/api/musicians/${state.params.id}`);
@@ -357,37 +420,136 @@ function ResetPasswordPage() {
   return h('div', { class: 'full-bleed gradient-surface auth-shell' }, form);
 }
 
+// Whole-years-old from a 'YYYY-MM-DD' string, computed the same way the
+// server does (see server/routes/auth.js calcAge) — used only to decide
+// whether to show the guardian fields; the server re-validates regardless.
+function ageFromDob(dobStr) {
+  if (!dobStr) return null;
+  const dob = new Date(`${dobStr}T00:00:00`);
+  if (Number.isNaN(dob.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+  return age;
+}
+
 function SignupPage() {
-  const v = { email: '', password: '', name: '', phone: '', role: 'client' };
-  const form = h('form', { class: 'card center-form', onsubmit: async (e) => {
-    e.preventDefault();
+  const v = { email: '', password: '', name: '', phone: '', role: 'client', dateOfBirth: '', guardianName: '', guardianEmail: '', termsAccepted: false };
+  let container;
+
+  function build() {
+    const age = ageFromDob(v.dateOfBirth);
+    const isMinor = age != null && age < 18;
+
+    const form = h('form', { class: 'card center-form', onsubmit: async (e) => {
+      e.preventDefault();
+      try {
+        await api('POST', '/api/auth/signup', v);
+        await refreshMe();
+        await refreshNotifications();
+        navigate('home', {}, { type: 'success', message: 'Account created!' });
+      } catch (err) { showBanner('error', err.message); }
+    } },
+      h('h1', {}, 'Create your account'),
+      h('label', {}, 'I am a...'),
+      h('select', { onchange: (e) => v.role = e.target.value },
+        h('option', { value: 'client' }, 'Client (I want to hire musicians / rent gear)'),
+        h('option', { value: 'musician' }, 'Musician, Singer, DJ, MC & other performers'),
+        h('option', { value: 'equipment_owner' }, 'Equipment Owner (I rent out gear)')
+      ),
+      h('label', {}, 'Full name'),
+      h('input', { required: true, value: v.name, oninput: (e) => v.name = e.target.value }),
+      h('label', {}, 'Email'),
+      h('input', { type: 'email', required: true, value: v.email, oninput: (e) => v.email = e.target.value }),
+      h('label', {}, 'Phone (optional)'),
+      h('input', { value: v.phone, oninput: (e) => v.phone = e.target.value }),
+      h('label', {}, 'Date of birth'),
+      h('input', {
+        type: 'date', required: true, value: v.dateOfBirth,
+        oninput: (e) => { v.dateOfBirth = e.target.value; rerender(); },
+      }),
+      isMinor ? h('div', { class: 'card', style: 'background:var(--surface-2,#f4efe8);margin:4px 0 2px;padding:14px' },
+        h('p', { style: 'margin:0 0 10px;font-weight:600' }, "Since you're under 18, we need a parent or guardian's OK."),
+        h('p', { class: 'muted', style: 'margin:0 0 12px' }, "We'll email them a link to approve before your account can post a profile, apply to jobs, or book anything."),
+        h('label', {}, "Parent/guardian's name"),
+        h('input', { required: true, value: v.guardianName, oninput: (e) => v.guardianName = e.target.value }),
+        h('label', {}, "Parent/guardian's email"),
+        h('input', { type: 'email', required: true, value: v.guardianEmail, oninput: (e) => v.guardianEmail = e.target.value })
+      ) : null,
+      h('label', {}, 'Password (min 8 characters)'),
+      h('input', { type: 'password', required: true, minlength: 8, value: v.password, oninput: (e) => v.password = e.target.value }),
+      h('label', { style: 'display:flex;align-items:flex-start;gap:8px;font-weight:400;margin-top:14px' },
+        h('input', {
+          type: 'checkbox', required: true, style: 'width:auto;margin-top:3px', checked: v.termsAccepted,
+          onchange: (e) => v.termsAccepted = e.target.checked,
+        }),
+        h('span', {}, 'I agree to the ',
+          h('a', { href: '/terms-of-service.html', target: '_blank', rel: 'noopener' }, 'Terms of Service'),
+          '.')
+      ),
+      h('div', { style: 'margin-top:18px' }, h('button', { type: 'submit' }, 'Sign up')),
+      h('p', { class: 'muted', style: 'margin-top:14px' }, 'Already have an account? ',
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('login'); } }, 'Log in'))
+    );
+    return form;
+  }
+
+  function rerender() {
+    const next = build();
+    container.replaceWith(next);
+    container = next;
+  }
+
+  container = build();
+  return h('div', { class: 'full-bleed gradient-surface auth-shell' }, container);
+}
+
+// Landing page for a parent/guardian consent link (/?consentToken=...),
+// same URL-param pattern as the password-reset link below. No login
+// required — the token itself (only ever emailed to the guardian) is what
+// authorizes the approve/deny decision.
+function ConsentPage() {
+  const token = state.params.token;
+  const info = state.params.info; // loaded by loadPageData before first render
+  const decided = state.params.decided;
+
+  if (!info) {
+    return h('div', { class: 'full-bleed gradient-surface auth-shell' },
+      h('div', { class: 'card center-form' }, h('p', {}, 'Checking this link…')));
+  }
+  if (info.error) {
+    return h('div', { class: 'full-bleed gradient-surface auth-shell' },
+      h('div', { class: 'card center-form' }, h('p', { class: 'error-box' }, info.error)));
+  }
+
+  async function decide(decision) {
     try {
-      await api('POST', '/api/auth/signup', v);
-      await refreshMe();
-      await refreshNotifications();
-      navigate('home', {}, { type: 'success', message: 'Account created!' });
+      const res = await api('POST', '/api/auth/consent/confirm', { token, decision });
+      state.params = { ...state.params, decided: res.status };
+      render();
     } catch (err) { showBanner('error', err.message); }
-  } },
-    h('h1', {}, 'Create your account'),
-    h('label', {}, 'I am a...'),
-    h('select', { onchange: (e) => v.role = e.target.value },
-      h('option', { value: 'client' }, 'Client (I want to hire musicians / rent gear)'),
-      h('option', { value: 'musician' }, 'Musician, Singer, DJ, MC & other performers'),
-      h('option', { value: 'equipment_owner' }, 'Equipment Owner (I rent out gear)')
-    ),
-    h('label', {}, 'Full name'),
-    h('input', { required: true, oninput: (e) => v.name = e.target.value }),
-    h('label', {}, 'Email'),
-    h('input', { type: 'email', required: true, oninput: (e) => v.email = e.target.value }),
-    h('label', {}, 'Phone (optional)'),
-    h('input', { oninput: (e) => v.phone = e.target.value }),
-    h('label', {}, 'Password (min 8 characters)'),
-    h('input', { type: 'password', required: true, minlength: 8, oninput: (e) => v.password = e.target.value }),
-    h('div', { style: 'margin-top:18px' }, h('button', { type: 'submit' }, 'Sign up')),
-    h('p', { class: 'muted', style: 'margin-top:14px' }, 'Already have an account? ',
-      h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('login'); } }, 'Log in'))
-  );
-  return h('div', { class: 'full-bleed gradient-surface auth-shell' }, form);
+  }
+
+  if (decided) {
+    return h('div', { class: 'full-bleed gradient-surface auth-shell' },
+      h('div', { class: 'card center-form' },
+        h('h1', {}, decided === 'approved' ? 'Approved' : 'Declined'),
+        h('p', {}, decided === 'approved'
+          ? `Thanks — ${info.minorName}'s account now has full access.`
+          : `Got it — ${info.minorName}'s account will stay restricted.`)
+      ));
+  }
+
+  return h('div', { class: 'full-bleed gradient-surface auth-shell' },
+    h('div', { class: 'card center-form' },
+      h('h1', {}, 'Parent/guardian approval'),
+      h('p', {}, `${info.minorName} (${info.minorEmail}) listed you as their parent or guardian and signed up for Kaf Musician Connect as a ${info.role === 'musician' ? 'musician/performer' : info.role === 'equipment_owner' ? 'equipment owner' : 'client'}.`),
+      h('p', { class: 'muted' }, "Until you approve, their account can browse but can't post a profile, apply to jobs, or make bookings."),
+      h('div', { style: 'display:flex;gap:10px;margin-top:18px' },
+        h('button', { onclick: () => decide('approve') }, 'Approve'),
+        h('button', { class: 'secondary', onclick: () => decide('deny') }, 'Decline'))
+    ));
 }
 
 /* ---------- countries ---------- */
@@ -721,7 +883,17 @@ function FeaturedCategoriesSection() {
       FEATURED_CATEGORIES.map((cat, i) => h('div', {
         class: `category-tile ${CATEGORY_TILE_ART[i % CATEGORY_TILE_ART.length]}`,
         role: 'link', tabindex: '0',
+        'aria-label': `${cat.label} — ${cat.desc}`,
         onclick: () => navigate('home', { category: cat.category, qs: `?category=${encodeURIComponent(cat.category)}` }),
+        // A div with role="link" has no native keyboard activation — Enter
+        // and Space are what a real <a> would respond to, so a
+        // keyboard-only visitor can't reach these otherwise (WCAG 2.1.1).
+        onkeydown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            navigate('home', { category: cat.category, qs: `?category=${encodeURIComponent(cat.category)}` });
+          }
+        },
       },
         h('h3', {}, cat.label),
         h('p', {}, cat.desc),
@@ -1234,6 +1406,12 @@ function MusicianDetailPage() {
           : h('audio', { src: m.url, controls: true }),
         h('span', { class: 'muted' }, m.fileName || 'Demo')))
     ) : null,
+    (p.galleryUrls && p.galleryUrls.length) ? h('div', { style: 'margin:14px 0' },
+      h('label', {}, 'Photos'),
+      h('div', { class: 'gallery-grid' },
+        p.galleryUrls.map((g) => h('div', { class: 'gallery-thumb' },
+          h('img', { src: g.url, alt: g.fileName || 'Gallery photo' }))))
+    ) : null,
     p.hasInsurance ? h('p', { class: 'muted' }, '🛡️ Self-reported liability insurance') : null,
     p.strikes > 0 ? h('p', { class: 'muted' }, `⚠️ ${p.strikes} no-show strike(s) on record`) : null,
     h('div', { class: 'safety-notice' },
@@ -1602,6 +1780,7 @@ function MusicianProfileForm() {
     eventTypes: [...(p.eventTypes || [])],
     videoUrl: p.videoUrl || '', mediaUrls: [...(p.mediaUrls || [])],
     photoUrl: p.photoUrl || null,
+    galleryUrls: (p.galleryUrls || []).map((g) => ({ ...g })),
     skillLevels: { ...(p.skillLevels || {}) },
     yearsExperience: p.yearsExperience != null ? p.yearsExperience : '',
     readsChordCharts: !!p.readsChordCharts, readsNashvilleNumbers: !!p.readsNashvilleNumbers, readsSheetMusic: !!p.readsSheetMusic,
@@ -1618,11 +1797,43 @@ function MusicianProfileForm() {
   const rerender = () => { clear(wrap); wrap.appendChild(build()); };
   let uploadingDemo = false;
   let uploadingPhoto = false;
+  let uploadingGallery = false;
   let cityCustom = false;
   let demoStatus = null; // { type: 'success'|'error', message } — shown inline so it never
   // triggers the app-wide render() (via showBanner) that would wipe any of this
   // form's other not-yet-saved fields (e.g. a typed demo link, edited bio, etc.)
   let photoStatus = null; // same reasoning as demoStatus, for the profile-photo upload below
+  let galleryStatus = null; // same reasoning, for the gallery uploads below
+
+  async function uploadGalleryPhoto(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { galleryStatus = { type: 'error', message: 'Please choose an image file.' }; rerender(); return; }
+    if (file.size > 5 * 1024 * 1024) { galleryStatus = { type: 'error', message: 'Gallery photos must be under 5MB each.' }; rerender(); return; }
+    if (v.galleryUrls.length >= 12) { galleryStatus = { type: 'error', message: 'You can have at most 12 gallery photos — remove one first.' }; rerender(); return; }
+    uploadingGallery = true; galleryStatus = null; rerender();
+    try {
+      const base64 = await readFileAsBase64(file);
+      const data = await api('POST', '/api/musicians/gallery-upload', { fileName: file.name, mimeType: file.type, dataBase64: base64 });
+      state.musicianProfile = { ...state.musicianProfile, galleryUrls: data.profile.galleryUrls };
+      v.galleryUrls = [...(data.profile.galleryUrls || [])];
+      galleryStatus = { type: 'success', message: 'Photo added.' };
+    } catch (err) {
+      galleryStatus = { type: 'error', message: err.message };
+    } finally {
+      uploadingGallery = false;
+      rerender();
+    }
+  }
+
+  async function removeGalleryPhoto(url) {
+    try {
+      const data = await api('POST', '/api/musicians/gallery-delete', { url });
+      state.musicianProfile = { ...state.musicianProfile, galleryUrls: data.profile.galleryUrls };
+      v.galleryUrls = [...(data.profile.galleryUrls || [])];
+      galleryStatus = { type: 'success', message: 'Photo removed.' };
+      rerender();
+    } catch (err) { galleryStatus = { type: 'error', message: err.message }; rerender(); }
+  }
 
   async function uploadPhoto(file) {
     if (!file) return;
@@ -1738,6 +1949,19 @@ function MusicianProfileForm() {
       !v.photoUrl ? h('div', { class: 'nudge-banner' }, '📸 Add a profile photo — profiles with a real photo get noticed first in search and feel far more trustworthy to clients.') : null,
       h('label', {}, 'Profile photo — shown on your card in search results and at the top of your profile'),
       PhotoUploadField(v.stageName, v.photoUrl, uploadingPhoto, photoStatus, uploadPhoto, removePhoto),
+      h('label', {}, 'Photo gallery — extra photos shown on your full profile page (up to 12, 5MB each)'),
+      h('div', { class: 'card', style: 'background:var(--surface-2, transparent);margin-bottom:10px' },
+        h('input', { type: 'file', accept: 'image/*', disabled: uploadingGallery,
+          onchange: (e) => { uploadGalleryPhoto(e.target.files[0]); e.target.value = ''; } }),
+        uploadingGallery ? h('p', { class: 'muted' }, 'Uploading…') : null,
+        galleryStatus ? h('p', { class: galleryStatus.type === 'error' ? 'error-box' : 'success-box' }, galleryStatus.message) : null,
+        v.galleryUrls.length ? h('div', { class: 'gallery-grid', style: 'margin-top:10px' },
+          v.galleryUrls.map((g) => h('div', { class: 'gallery-thumb' },
+            h('img', { src: g.url, alt: g.fileName || 'Gallery photo' }),
+            h('button', { type: 'button', class: 'danger', onclick: () => removeGalleryPhoto(g.url) }, 'Remove')
+          ))
+        ) : h('p', { class: 'muted', style: 'margin:6px 0 0' }, 'No gallery photos yet.')
+      ),
       h('label', {}, 'Stage name'), h('input', { value: v.stageName, oninput: (e) => v.stageName = e.target.value }),
       h('label', {}, 'Bio'), h('textarea', { rows: 3, oninput: (e) => v.bio = e.target.value }, v.bio),
       h('label', {}, 'Hourly rate ($)'), h('input', { type: 'number', value: v.hourlyRate, oninput: (e) => v.hourlyRate = e.target.value }),
@@ -2414,9 +2638,14 @@ async function init() {
   // visible URL so it doesn't linger in history/bookmarks.
   const urlParams = new URLSearchParams(window.location.search);
   const resetToken = urlParams.get('resetToken');
+  const consentToken = urlParams.get('consentToken');
   if (resetToken) {
     state.page = 'resetPassword';
     state.params = { token: resetToken };
+    window.history.replaceState({}, '', window.location.pathname);
+  } else if (consentToken) {
+    state.page = 'consent';
+    state.params = { token: consentToken };
     window.history.replaceState({}, '', window.location.pathname);
   }
   render();

@@ -76,6 +76,12 @@ function sanitizeUser(u) {
     phone: u.phone,
     suspended: !!u.suspended,
     suspensionReason: u.suspension_reason || null,
+    dateOfBirth: u.date_of_birth || null,
+    // 'not_required' (18+), 'pending' (awaiting guardian response),
+    // 'approved', or 'denied' — see server/routes/auth.js signup handler.
+    consentStatus: u.consent_status || 'not_required',
+    guardianName: u.guardian_name || null,
+    guardianEmail: u.guardian_email || null,
     createdAt: u.created_at,
   };
 }

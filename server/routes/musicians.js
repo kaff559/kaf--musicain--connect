@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../db');
 const { HttpError } = require('../lib/router');
-const { requireRole, serializeMusicianProfile, parseJsonSafe } = require('../lib/helpers');
+const { requireRole, requireConsentCleared, serializeMusicianProfile, parseJsonSafe } = require('../lib/helpers');
 
 // Demo files (short audio/video clips musicians upload from their dashboard)
 // live on the same persistent disk as the SQLite database — see DEPLOY.md.
@@ -26,6 +26,13 @@ const PHOTO_EXT_BY_MIME = {
   'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png',
   'image/webp': '.webp', 'image/gif': '.gif',
 };
+
+// Extra photo gallery — separate subfolder from the single avatar above.
+// Same size/type rules as the profile photo, but many allowed per profile
+// (capped) instead of just one.
+const GALLERY_UPLOADS_DIR = path.join(__dirname, '..', '..', 'data', 'uploads', 'gallery');
+const MAX_GALLERY_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB decoded file size, per photo
+const MAX_GALLERY_PHOTOS = 12;
 
 // --- Richer profile field validation -------------------------------------
 const VALID_SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'];
@@ -221,6 +228,7 @@ function register(router) {
 
   router.post('/api/musicians/profile', async (ctx) => {
     const user = requireRole(ctx, 'musician');
+    requireConsentCleared(user);
     const p = db.prepare('SELECT * FROM musician_profiles WHERE user_id = ?').get(user.id);
     if (!p) throw new HttpError(404, 'Profile not found');
     const b = ctx.body;
@@ -377,6 +385,57 @@ function register(router) {
       fs.unlink(path.join(AVATAR_UPLOADS_DIR, path.basename(p.photo_url)), () => {});
     }
     db.prepare('UPDATE musician_profiles SET photo_url = NULL WHERE id = ?').run(p.id);
+    const updated = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(p.id);
+    return { profile: serializeMusicianProfile(updated) };
+  });
+
+  // Gallery photo upload — same base64-JSON approach as photo-upload, but
+  // appends to a list instead of replacing a single field, capped so a
+  // profile can't accumulate unlimited images.
+  router.post('/api/musicians/gallery-upload', async (ctx) => {
+    const user = requireRole(ctx, 'musician');
+    const p = db.prepare('SELECT * FROM musician_profiles WHERE user_id = ?').get(user.id);
+    if (!p) throw new HttpError(404, 'Profile not found');
+    const b = ctx.body;
+    if (!b.dataBase64 || !b.mimeType) throw new HttpError(400, 'dataBase64 and mimeType are required');
+    if (!/^image\//.test(b.mimeType)) throw new HttpError(400, 'Only image files can be added to the gallery');
+    const galleryUrls = parseJsonSafe(p.gallery_urls, []);
+    if (galleryUrls.length >= MAX_GALLERY_PHOTOS) {
+      throw new HttpError(400, `You can have at most ${MAX_GALLERY_PHOTOS} gallery photos — remove one first`);
+    }
+    let buffer;
+    try {
+      buffer = Buffer.from(b.dataBase64, 'base64');
+    } catch (e) {
+      throw new HttpError(400, 'Could not decode file data');
+    }
+    if (!buffer.length) throw new HttpError(400, 'File appears to be empty');
+    if (buffer.length > MAX_GALLERY_PHOTO_BYTES) throw new HttpError(413, 'Gallery photos must be under 5MB each');
+
+    const ext = PHOTO_EXT_BY_MIME[b.mimeType] || path.extname(b.fileName || '') || '';
+    const safeName = `${p.id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+    fs.mkdirSync(GALLERY_UPLOADS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(GALLERY_UPLOADS_DIR, safeName), buffer);
+
+    galleryUrls.push({ url: `/uploads/gallery/${safeName}`, fileName: b.fileName || safeName });
+    db.prepare('UPDATE musician_profiles SET gallery_urls = ? WHERE id = ?').run(JSON.stringify(galleryUrls), p.id);
+    const updated = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(p.id);
+    return { profile: serializeMusicianProfile(updated) };
+  });
+
+  router.post('/api/musicians/gallery-delete', async (ctx) => {
+    const user = requireRole(ctx, 'musician');
+    const p = db.prepare('SELECT * FROM musician_profiles WHERE user_id = ?').get(user.id);
+    if (!p) throw new HttpError(404, 'Profile not found');
+    const b = ctx.body;
+    if (!b.url) throw new HttpError(400, 'url is required');
+    const galleryUrls = parseJsonSafe(p.gallery_urls, []);
+    const remaining = galleryUrls.filter((g) => g.url !== b.url);
+    db.prepare('UPDATE musician_profiles SET gallery_urls = ? WHERE id = ?').run(JSON.stringify(remaining), p.id);
+    if (b.url.startsWith('/uploads/gallery/')) {
+      const filePath = path.join(GALLERY_UPLOADS_DIR, path.basename(b.url));
+      fs.unlink(filePath, () => {});
+    }
     const updated = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(p.id);
     return { profile: serializeMusicianProfile(updated) };
   });

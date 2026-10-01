@@ -3,7 +3,7 @@
 const db = require('../db');
 const { HttpError } = require('../lib/router');
 const {
-  requireAuth, requireRole, notify, serializeJobPosting, serializeJobResponse,
+  requireAuth, requireRole, requireConsentCleared, notify, serializeJobPosting, serializeJobResponse,
 } = require('../lib/helpers');
 
 function loadJob(id) {
@@ -16,6 +16,7 @@ function register(router) {
   // Client posts an opening.
   router.post('/api/jobs', async (ctx) => {
     const user = requireRole(ctx, 'client');
+    requireConsentCleared(user);
     const b = ctx.body;
     if (!b.title || !String(b.title).trim()) throw new HttpError(400, 'Title is required');
     if (!b.eventDate) throw new HttpError(400, 'eventDate is required');
@@ -148,6 +149,7 @@ function register(router) {
   // Talent responds to a posting.
   router.post('/api/jobs/:id/respond', async (ctx) => {
     const user = requireRole(ctx, 'musician');
+    requireConsentCleared(user);
     const job = loadJob(ctx.params.id);
     if (job.status !== 'open') throw new HttpError(400, 'This job posting is no longer open');
     const profile = db.prepare('SELECT * FROM musician_profiles WHERE user_id = ?').get(user.id);

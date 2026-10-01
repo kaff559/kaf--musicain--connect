@@ -150,6 +150,10 @@ footer.appfoot .footer-link:hover { text-decoration: underline; }
 .availability-table th { color: var(--muted); font-weight: 500; }
 .availability-table td:first-child, .availability-table th:first-child { text-align: left; color: var(--muted); }
 .availability-table tbody tr:nth-child(odd) { background: var(--bg2); }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.gallery-thumb { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--bg2); }
+.gallery-thumb img { width: 100%; height: 120px; object-fit: cover; display: block; }
+.gallery-thumb button { position: absolute; bottom: 6px; right: 6px; left: 6px; }
 
 /* ---------- profile photos ---------- */
 .avatar {

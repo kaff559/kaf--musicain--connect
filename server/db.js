@@ -268,6 +268,10 @@ ensureColumn('equipment_owner_profiles', 'country', 'country TEXT');
 // media files (stored on the persistent disk, only the URL lives in the DB).
 ensureColumn('musician_profiles', 'photo_url', 'photo_url TEXT');
 ensureColumn('equipment_owner_profiles', 'photo_url', 'photo_url TEXT');
+// Extra photo gallery, separate from the single primary photo_url above —
+// shown on the full profile page as a small grid. JSON array of
+// {url, fileName}, same pattern as media_urls for demo clips.
+ensureColumn('musician_profiles', 'gallery_urls', "gallery_urls TEXT NOT NULL DEFAULT '[]'");
 
 // --- Richer talent profile fields ---------------------------------------
 // Per-role skill level, e.g. {"Drums": "expert", "Lead vocalist": "intermediate"}
@@ -291,5 +295,30 @@ ensureColumn('musician_profiles', 'travel_radius_miles', 'travel_radius_miles RE
 // Column is named reference_list (not `references`) to avoid colliding with
 // the SQL reserved word used elsewhere for foreign keys.
 ensureColumn('musician_profiles', 'reference_list', "reference_list TEXT NOT NULL DEFAULT '[]'");
+
+// --- Age / parental consent ----------------------------------------------
+// date_of_birth drives the under-18 check at signup. consent_status is
+// 'not_required' for adult accounts, 'pending' right after a minor signs up
+// (restricted until a guardian responds), then 'approved' or 'denied'.
+ensureColumn('users', 'date_of_birth', 'date_of_birth TEXT');
+ensureColumn('users', 'guardian_name', 'guardian_name TEXT');
+ensureColumn('users', 'guardian_email', 'guardian_email TEXT');
+ensureColumn('users', 'consent_status', "consent_status TEXT NOT NULL DEFAULT 'not_required'");
+ensureColumn('users', 'terms_accepted_at', 'terms_accepted_at TEXT');
+
+// One active parental-consent link per minor account, same pattern as
+// password_reset_tokens — a fresh signup (or resend) invalidates any
+// earlier link for that user.
+db.exec(`
+CREATE TABLE IF NOT EXISTS parental_consent_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_hash ON parental_consent_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_user ON parental_consent_tokens(user_id);
+`);
 
 module.exports = db;

@@ -17,6 +17,20 @@ function requireRole(ctx, ...roles) {
   return u;
 }
 
+// Blocks the "posting"/transacting actions (publishing a talent profile,
+// posting or applying to a job, requesting or accepting a booking, listing
+// or renting equipment) for an under-18 account until a parent/guardian has
+// approved it. Read-only actions (browsing, viewing a dashboard) are left
+// alone — only call this from handlers that create or publish something.
+function requireConsentCleared(user) {
+  if (user.consent_status === 'pending') {
+    throw new HttpError(403, "This account needs a parent or guardian to approve it first — we emailed them a confirmation link. Once they approve, this will be available.");
+  }
+  if (user.consent_status === 'denied') {
+    throw new HttpError(403, 'A parent or guardian did not approve this account, so this action is not available. Contact support if you think this is a mistake.');
+  }
+}
+
 function notify(userId, message, type = 'info') {
   db.prepare('INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)').run(userId, message, type);
 }
@@ -61,6 +75,7 @@ function serializeMusicianProfile(p) {
     mediaUrls: parseJsonSafe(p.media_urls, []),
     videoUrl: p.video_url,
     photoUrl: p.photo_url || null,
+    galleryUrls: parseJsonSafe(p.gallery_urls, []),
     eventTypes: parseJsonSafe(p.event_types, []),
     skillLevels: parseJsonSafe(p.skill_levels, {}),
     yearsExperience: p.years_experience != null ? p.years_experience : null,
@@ -179,6 +194,7 @@ module.exports = {
   SERVICE_FEE_RATE,
   requireAuth,
   requireRole,
+  requireConsentCleared,
   notify,
   calcServiceFee,
   parseJsonSafe,

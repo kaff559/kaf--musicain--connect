@@ -3,7 +3,7 @@
 const db = require('../db');
 const { HttpError } = require('../lib/router');
 const {
-  requireAuth, requireRole, notify, calcServiceFee, serializeBooking,
+  requireAuth, requireRole, requireConsentCleared, notify, calcServiceFee, serializeBooking,
 } = require('../lib/helpers');
 
 function loadBooking(id) {
@@ -22,6 +22,7 @@ function register(router) {
   // Create a booking request (client -> musician)
   router.post('/api/bookings', async (ctx) => {
     const user = requireRole(ctx, 'client');
+    requireConsentCleared(user);
     const b = ctx.body;
     const profile = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(b.musicianProfileId);
     if (!profile) throw new HttpError(404, 'Musician not found');

@@ -2,7 +2,7 @@
 
 const db = require('../db');
 const { HttpError } = require('../lib/router');
-const { requireRole, requireAuth, notify, calcServiceFee, serializeRental, equipmentOwnerProfileForUser } = require('../lib/helpers');
+const { requireRole, requireAuth, requireConsentCleared, notify, calcServiceFee, serializeRental, equipmentOwnerProfileForUser } = require('../lib/helpers');
 
 function daysBetween(start, end) {
   const s = new Date(start + 'T00:00:00Z');
@@ -20,6 +20,7 @@ function loadRental(id) {
 function register(router) {
   router.post('/api/rentals', async (ctx) => {
     const user = requireRole(ctx, 'client');
+    requireConsentCleared(user);
     const b = ctx.body;
     const item = db.prepare('SELECT * FROM equipment WHERE id = ?').get(b.equipmentId);
     if (!item) throw new HttpError(404, 'Equipment not found');
