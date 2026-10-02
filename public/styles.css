@@ -77,6 +77,10 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 }
 .stripe-card-element--focused { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-color: var(--border-strong); }
 .stripe-card-error { color: var(--danger); font-size: 13px; margin-top: 6px; min-height: 16px; }
+/* Signup honeypot (see public/app.js SignupPage) — positioned off-screen
+   rather than display:none/visibility:hidden, since some bots skip fields
+   hidden that way but still fill ones that are merely moved off-canvas. */
+.hp-field { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-color: var(--border-strong); box-shadow: none; }
 button:focus-visible, a:focus-visible, .category-tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; margin: 12px 0 4px; }

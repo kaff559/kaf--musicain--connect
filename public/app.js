@@ -531,7 +531,12 @@ function ageFromDob(dobStr) {
 }
 
 function SignupPage() {
-  const v = { email: '', password: '', name: '', phone: '', role: 'client', dateOfBirth: '', guardianName: '', guardianEmail: '', termsAccepted: false };
+  // `website` is a honeypot, not a real field — see the .hp-field CSS rule
+  // and the server-side check in server/routes/auth.js. It's positioned
+  // off-screen and skipped in tab order so no sighted or keyboard user ever
+  // notices or fills it; a script that blindly fills every <input> on the
+  // page does, and the server quietly rejects the signup when it's set.
+  const v = { email: '', password: '', name: '', phone: '', role: 'client', dateOfBirth: '', guardianName: '', guardianEmail: '', termsAccepted: false, website: '' };
   let container;
 
   function build() {
@@ -575,6 +580,16 @@ function SignupPage() {
       ) : null,
       h('label', {}, 'Password (min 8 characters)'),
       h('input', { type: 'password', required: true, minlength: 8, value: v.password, oninput: (e) => v.password = e.target.value }),
+      // Honeypot field — see note above `v` at the top of SignupPage().
+      // Placed last (after every field a real signup fills) so it never
+      // shifts the position of the earlier, real inputs.
+      h('div', { class: 'hp-field', 'aria-hidden': 'true' },
+        h('label', { for: 'website' }, 'Website'),
+        h('input', {
+          id: 'website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off',
+          value: v.website, oninput: (e) => v.website = e.target.value,
+        })
+      ),
       h('label', { style: 'display:flex;align-items:flex-start;gap:8px;font-weight:400;margin-top:14px' },
         h('input', {
           type: 'checkbox', required: true, style: 'width:auto;margin-top:3px', checked: v.termsAccepted,

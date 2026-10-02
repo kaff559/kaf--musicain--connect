@@ -6,11 +6,29 @@ const { HttpError } = require('../lib/router');
 const auth = require('../lib/auth');
 const { requireAuth, musicianProfileForUser, equipmentOwnerProfileForUser, serializeMusicianProfile, notify } = require('../lib/helpers');
 const { sendEmail } = require('../lib/email');
+const { rateLimit } = require('../lib/rate-limit');
 
 const VALID_ROLES = ['musician', 'client', 'equipment_owner'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DOB_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CONSENT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks to give a guardian time to respond
+
+// Signup: capped per IP, generous enough for a real person trying a couple
+// times (typo in password, etc.) but not for a script spinning up accounts.
+const signupLimiter = rateLimit({ max: 8, windowMs: 60 * 60 * 1000, keyPrefix: 'signup' });
+// Login: two layers — per IP (catches one machine spraying many emails) and
+// per email (catches many machines/proxies hammering one account), so a
+// distributed brute force against a single victim is still caught even
+// though no single IP looks abusive on its own.
+const loginLimiterIp = rateLimit({ max: 20, windowMs: 15 * 60 * 1000, keyPrefix: 'login-ip' });
+const loginLimiterEmail = rateLimit({
+  max: 8, windowMs: 15 * 60 * 1000, keyPrefix: 'login-email',
+  keyFn: (ctx) => String(ctx.body.email || '').toLowerCase(),
+});
+// Guardian-approval decisions: the token itself is an unguessable 256-bit
+// secret emailed only to the guardian, so this is defense-in-depth rather
+// than the primary protection.
+const consentLimiterIp = rateLimit({ max: 30, windowMs: 15 * 60 * 1000, keyPrefix: 'consent-ip' });
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -30,7 +48,15 @@ function calcAge(dobStr) {
 
 function register(router) {
   router.post('/api/auth/signup', async (ctx) => {
-    const { email, password, role, name, phone, dateOfBirth, guardianName, guardianEmail, termsAccepted } = ctx.body;
+    signupLimiter(ctx);
+    const { email, password, role, name, phone, dateOfBirth, guardianName, guardianEmail, termsAccepted, website } = ctx.body;
+    // Honeypot: a field named to look legitimate to a scripted form-filler,
+    // hidden from real users via CSS (see public/styles.css .hp-field) and
+    // never populated by the actual signup UI (public/app.js). A human
+    // never sends a value for it; a bot that blindly fills every field
+    // does. Reject quietly rather than explaining why — no reason to help
+    // whoever's script this is debug past it.
+    if (website) throw new HttpError(400, 'Could not create account');
     if (!email || !EMAIL_RE.test(String(email))) throw new HttpError(400, 'Valid email is required');
     if (!password || String(password).length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
     if (!name || !String(name).trim()) throw new HttpError(400, 'Name is required');
@@ -133,6 +159,7 @@ function register(router) {
   });
 
   router.post('/api/auth/consent/confirm', async (ctx) => {
+    consentLimiterIp(ctx);
     const { token, decision } = ctx.body;
     if (!token || !['approve', 'deny'].includes(decision)) throw new HttpError(400, 'Invalid request');
     const row = db.prepare(
@@ -156,6 +183,8 @@ function register(router) {
   });
 
   router.post('/api/auth/login', async (ctx) => {
+    loginLimiterIp(ctx);
+    loginLimiterEmail(ctx);
     const { email, password } = ctx.body;
     if (!email || !password) throw new HttpError(400, 'Email and password are required');
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());

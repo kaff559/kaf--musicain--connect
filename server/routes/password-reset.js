@@ -5,8 +5,23 @@ const db = require('../db');
 const { HttpError } = require('../lib/router');
 const auth = require('../lib/auth');
 const { sendEmail } = require('../lib/email');
+const { rateLimit } = require('../lib/rate-limit');
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// This endpoint sends an email per request, so beyond the usual
+// brute-force concern it's also a cost/abuse vector on its own (someone
+// could use it to spam an inbox with reset emails). Limit by IP and,
+// separately, by the target email so the same inbox can't be flooded from
+// many IPs either.
+const forgotLimiterIp = rateLimit({ max: 10, windowMs: 60 * 60 * 1000, keyPrefix: 'forgot-ip' });
+const forgotLimiterEmail = rateLimit({
+  max: 4, windowMs: 60 * 60 * 1000, keyPrefix: 'forgot-email',
+  keyFn: (ctx) => String(ctx.body.email || '').toLowerCase(),
+});
+// Reset tokens are unguessable 256-bit secrets, so this is defense-in-depth
+// against a script just trying many random tokens.
+const resetLimiterIp = rateLimit({ max: 20, windowMs: 15 * 60 * 1000, keyPrefix: 'reset-ip' });
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -17,9 +32,13 @@ function register(router) {
   // is registered — otherwise this endpoint would let anyone check which
   // emails have accounts.
   router.post('/api/auth/forgot-password', async (ctx) => {
+    forgotLimiterIp(ctx);
     const generic = { ok: true, message: 'If an account exists for that email, a reset link has been sent.' };
     const { email } = ctx.body;
     if (!email) return generic;
+    // Keyed on the actual target address, so this runs after the empty-email
+    // short-circuit above (no point bucketing "" requests together).
+    forgotLimiterEmail(ctx);
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());
     if (!user) return generic;
@@ -53,6 +72,7 @@ function register(router) {
   });
 
   router.post('/api/auth/reset-password', async (ctx) => {
+    resetLimiterIp(ctx);
     const { token, password } = ctx.body;
     if (!token || !password) throw new HttpError(400, 'Reset token and new password are required');
     if (String(password).length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
