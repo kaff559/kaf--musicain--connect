@@ -1,0 +1,21 @@
+{
+  "name": "kaf-mobile-app",
+  "version": "1.0.0",
+  "description": "Native iOS/Android wrapper for Kaf Musician Connect, built with Capacitor. This just packages the already-live site (kafmusicianconnect.com) into real app shells for the App Store and Play Store — the web app itself (in ../public and ../server) is unchanged and untouched by this folder.",
+  "private": true,
+  "scripts": {
+    "assets": "capacitor-assets generate",
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/assets": "^3.0.5"
+  }
+}

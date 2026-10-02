@@ -1,0 +1,27 @@
+{
+  "appId": "com.kafmusicianconnect.app",
+  "appName": "Kaf Musician Connect",
+  "webDir": "www",
+  "backgroundColor": "#0a1128",
+  "server": {
+    "url": "https://kafmusicianconnect.com",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0a1128"
+  },
+  "android": {
+    "backgroundColor": "#0a1128",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0a1128",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}
