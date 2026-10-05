@@ -154,6 +154,7 @@ p.muted, span.muted { color: var(--muted); font-size: 13px; }
 footer.appfoot { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
 footer.appfoot .footer-link { color: var(--primary-light); text-decoration: none; }
 footer.appfoot .footer-link:hover { text-decoration: underline; }
+footer.appfoot .footer-slogan { margin-top: 6px; font-style: italic; }
 .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; }
 .pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text); }

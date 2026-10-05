@@ -347,7 +347,8 @@ function render() {
   app.appendChild(h('footer', { class: 'appfoot' },
     'Musician Connect — musicians, MCs, DJs & equipment rental, all in one place. ',
     h('a', { href: '/terms-of-service.html', class: 'footer-link' }, 'Terms of Service'), ' · ',
-    h('a', { href: '/privacy-policy.html', class: 'footer-link' }, 'Privacy Policy')
+    h('a', { href: '/privacy-policy.html', class: 'footer-link' }, 'Privacy Policy'),
+    h('div', { class: 'footer-slogan' }, 'The Lord is my Shepherd')
   ));
 }
 
