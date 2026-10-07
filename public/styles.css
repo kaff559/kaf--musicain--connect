@@ -68,15 +68,19 @@ input, select, textarea {
   color: var(--text);
 }
 input::placeholder, textarea::placeholder { color: var(--muted); }
-/* Mount point for a Stripe.js Card Element (server/public/app.js openBookingModal
-   / openRentalModal) — styled to match the plain inputs above since Stripe
-   renders its own iframe inside this div rather than a real <input>. */
-.stripe-card-element {
-  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--bg2);
+/* Mount point for PayPal's JS SDK buttons (public/app.js openBookingModal /
+   openRentalModal / openCounterRespondModal) — PayPal renders its own
+   buttons/iframes inside this div, so this just gives them breathing room
+   consistent with the rest of the form. */
+.paypal-buttons-wrap { margin: 10px 0; min-height: 40px; }
+.paypal-button-error { color: var(--danger); font-size: 13px; margin-bottom: 6px; min-height: 16px; }
+/* Apple's own button appearance (public/app.js renderApplePayButton) — only
+   Safari understands -apple-pay-button, which is exactly the browser this
+   button only ever renders in (feature-detected via ApplePaySession). */
+.apple-pay-button {
+  display: block; width: 100%; height: 40px; border-radius: var(--radius);
+  -webkit-appearance: -apple-pay-button; -apple-pay-button-type: buy; -apple-pay-button-style: black;
 }
-.stripe-card-element--focused { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-color: var(--border-strong); }
-.stripe-card-error { color: var(--danger); font-size: 13px; margin-top: 6px; min-height: 16px; }
 /* Signup honeypot (see public/app.js SignupPage) — positioned off-screen
    rather than display:none/visibility:hidden, since some bots skip fields
    hidden that way but still fill ones that are merely moved off-canvas. */

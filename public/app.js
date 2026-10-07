@@ -77,83 +77,133 @@ async function api(method, path, body) {
   return data;
 }
 
-/* ---------- Stripe.js (card collection for bookings/rentals) ---------- */
-// Loaded once at startup from /api/stripe/public-config (server/routes/
-// stripe-connect.js). configured stays false — and the booking/rental
-// modals below skip card collection entirely — until a real
-// STRIPE_SECRET_KEY/STRIPE_PUBLISHABLE_KEY pair is set on the server; see
-// server/lib/stripe.js for the demo-mode fallback this pairs with.
-let stripePublicConfig = { configured: false, publishableKey: null, serviceFeeRate: 0 };
-let stripeJsInstance = null;
-let stripeJsLoadPromise = null;
+/* ---------- PayPal JS SDK (payment buttons for bookings/rentals) ------- */
+// Loaded once at startup from /api/paypal/public-config (server/routes/
+// paypal.js). configured stays false — and the booking/rental modals below
+// skip payment buttons entirely — until a real
+// PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET pair is set on the server; see
+// server/lib/paypal.js for the demo-mode fallback this pairs with.
+let paypalPublicConfig = { configured: false, clientId: null, serviceFeeRate: 0 };
+let paypalSdkPromise = null;
 
-function loadStripeJs() {
-  if (stripeJsInstance) return Promise.resolve(stripeJsInstance);
-  if (stripeJsLoadPromise) return stripeJsLoadPromise;
-  stripeJsLoadPromise = new Promise((resolve, reject) => {
+function loadPaypalSdk() {
+  if (paypalSdkPromise) return paypalSdkPromise;
+  paypalSdkPromise = new Promise((resolve, reject) => {
+    if (window.paypal) return resolve(window.paypal);
     const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/';
-    script.onload = () => {
-      try {
-        stripeJsInstance = window.Stripe(stripePublicConfig.publishableKey);
-        resolve(stripeJsInstance);
-      } catch (err) { reject(err); }
-    };
-    script.onerror = () => reject(new Error('Could not load the payment form — check your connection and try again.'));
+    // intent=authorize matches the "hold now, charge at acceptance" flow —
+    // see server/lib/paypal.js. components=buttons is the default, listed
+    // explicitly for clarity.
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(paypalPublicConfig.clientId)}&intent=authorize&components=buttons,applepay&enable-funding=card`;
+    script.onload = () => resolve(window.paypal);
+    script.onerror = () => reject(new Error('Could not load PayPal — check your connection and try again.'));
     document.head.appendChild(script);
   });
-  return stripeJsLoadPromise;
+  return paypalSdkPromise;
 }
 
-async function refreshStripePublicConfig() {
+async function refreshPaypalPublicConfig() {
   try {
-    stripePublicConfig = await api('GET', '/api/stripe/public-config');
+    paypalPublicConfig = await api('GET', '/api/paypal/public-config');
   } catch (e) { /* default (not configured) is a safe fallback */ }
 }
 
-// Mounts a Stripe Card Element into `container` and returns { card, errorEl }
-// for the caller to read from at submit time (card.createPaymentMethod isn't
-// called here — see collectPaymentMethod below — since the card shouldn't be
-// tokenized until the rest of the form has already validated).
-async function mountCardElement(container) {
-  const stripeInstance = await loadStripeJs();
-  const elements = stripeInstance.elements();
-  const style = {
-    base: { color: '#eef4ff', fontSize: '14px', '::placeholder': { color: '#9db8dc' } },
-    invalid: { color: '#ff8a80' },
-  };
-  const card = elements.create('card', { style });
-  const mountPoint = h('div', { class: 'stripe-card-element' });
-  const errorEl = h('div', { class: 'stripe-card-error', role: 'alert' });
-  container.appendChild(mountPoint);
+// Renders PayPal's "Pay with PayPal" + "Pay with Debit or Credit Card"
+// buttons into `container`. `getAmountDollars` is called fresh every time
+// the buyer clicks a button (not once up front) so it can reflect a total
+// that changed since the modal opened (e.g. the rental date range).
+// `onApproved(orderId)` fires every time the buyer finishes approving — the
+// buttons stay live afterward, so a caller whose own submit then fails
+// (e.g. a field the server rejects) can let the buyer just click again
+// rather than re-rendering anything.
+async function renderPaypalButtons(container, { getAmountDollars, onApproved }) {
+  const paypalSdk = await loadPaypalSdk();
+  const errorEl = h('div', { class: 'paypal-button-error', role: 'alert' });
+  const buttonsEl = h('div', {});
   container.appendChild(errorEl);
-  card.mount(mountPoint);
-  card.on('change', (e) => {
-    errorEl.textContent = e.error ? e.error.message : '';
-    mountPoint.className = `stripe-card-element${e.focused ? ' stripe-card-element--focused' : ''}`;
+  container.appendChild(buttonsEl);
+  paypalSdk.Buttons({
+    style: { layout: 'vertical', height: 40 },
+    createOrder: async () => {
+      errorEl.textContent = '';
+      try {
+        const data = await api('POST', '/api/paypal/orders', { amountDollars: getAmountDollars() });
+        return data.orderId;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        throw err;
+      }
+    },
+    onApprove: (data) => onApproved(data.orderID),
+    onCancel: () => { errorEl.textContent = 'Payment approval was cancelled.'; },
+    onError: () => { errorEl.textContent = 'There was a problem with PayPal — please try again.'; },
+  }).render(buttonsEl);
+}
+
+// Renders an Apple Pay button alongside the PayPal/card buttons — same
+// `getAmountDollars`/`onApproved` contract as renderPaypalButtons, so a
+// caller can treat the two identically; by the time onApproved fires, the
+// resulting order has been approved by the buyer either way. Apple Pay
+// needs the PayPal account to have it enabled and a domain-verification
+// file in place (see lib/paypal.js), so this quietly renders nothing at all
+// if the browser can't offer Apple Pay or the SDK says the merchant isn't
+// eligible — no error shown, since "not on an Apple device/browser" is the
+// normal case, not a failure.
+async function renderApplePayButton(container, { getAmountDollars, onApproved }) {
+  if (!window.ApplePaySession || !window.ApplePaySession.canMakePayments()) return;
+  const paypalSdk = await loadPaypalSdk();
+  if (!paypalSdk.Applepay) return;
+  const applepay = paypalSdk.Applepay();
+  let config;
+  try {
+    config = await applepay.config();
+  } catch (e) { return; } // Apple Pay not enabled on this PayPal account yet
+  if (!config || !config.isEligible) return;
+
+  const errorEl = h('div', { class: 'paypal-button-error', role: 'alert' });
+  const button = h('button', {
+    type: 'button',
+    class: 'apple-pay-button',
+    'aria-label': 'Pay with Apple Pay',
   });
-  return { card, errorEl };
-}
+  container.appendChild(errorEl);
+  container.appendChild(button);
 
-// Tokenizes the card into a one-time-use PaymentMethod id to send to the
-// server — the server never sees raw card details, only this id.
-async function collectPaymentMethod(card, errorEl) {
-  const stripeInstance = await loadStripeJs();
-  const { paymentMethod, error } = await stripeInstance.createPaymentMethod({ type: 'card', card });
-  if (error) {
-    errorEl.textContent = error.message;
-    throw new Error(error.message);
-  }
-  return paymentMethod.id;
-}
+  button.addEventListener('click', () => {
+    errorEl.textContent = '';
+    const request = {
+      countryCode: config.countryCode,
+      currencyCode: config.currencyCode,
+      merchantCapabilities: config.merchantCapabilities,
+      supportedNetworks: config.supportedNetworks,
+      total: { label: 'Kaf Musician Connect', amount: getAmountDollars().toFixed(2) },
+    };
+    const session = new window.ApplePaySession(4, request);
 
-// A booking/rental create call can come back with requiresAction: true when
-// the card needs 3D Secure — this finishes that challenge with Stripe
-// directly, then asks the server to re-check the real resulting status.
-async function resolveRequiresAction(clientSecret) {
-  const stripeInstance = await loadStripeJs();
-  const { error } = await stripeInstance.confirmCardPayment(clientSecret);
-  if (error) throw new Error(error.message);
+    session.onvalidatemerchant = async (event) => {
+      try {
+        const data = await api('POST', '/api/paypal/apple-pay/validate-merchant', { validationUrl: event.validationURL });
+        session.completeMerchantValidation(data.merchantSession);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        session.abort();
+      }
+    };
+
+    session.onpaymentauthorized = async (event) => {
+      try {
+        const order = await api('POST', '/api/paypal/orders', { amountDollars: getAmountDollars() });
+        await api('POST', '/api/paypal/apple-pay/confirm', { orderId: order.orderId, token: event.payment.token });
+        session.completePayment(window.ApplePaySession.STATUS_SUCCESS);
+        onApproved(order.orderId);
+      } catch (err) {
+        session.completePayment(window.ApplePaySession.STATUS_FAILURE);
+        errorEl.textContent = err.message;
+      }
+    };
+
+    session.begin();
+  });
 }
 
 /* ---------- global state ---------- */
@@ -697,8 +747,7 @@ const COUNTRIES = [
 // its real subdivisions. Any other country keeps the free-text State field,
 // since province/region naming isn't standardized enough worldwide to
 // dropdown-ify every country.
-const STATES_BY_COUNTRY = {
-  'United States': ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','District of Columbia','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'],
+const STATES_BY_COUNTRY = {  'United States': ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','District of Columbia','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'],
   'Canada': ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Northwest Territories','Nova Scotia','Nunavut','Ontario','Prince Edward Island','Quebec','Saskatchewan','Yukon'],
   'United Kingdom': ['England','Scotland','Wales','Northern Ireland'],
   'Nigeria': ['Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara','Federal Capital Territory (Abuja)'],
@@ -1447,8 +1496,7 @@ function BrowseMusiciansPage() {
     grid.appendChild(h('div', { class: 'card photo-card musician-card' },
       CardPhoto(p.photoUrl, p.stageName || p.name),
       h('div', { class: 'photo-card-body' },
-        h('div', { class: 'row between', style: 'gap:6px' }, h('h3', { style: 'margin:0' }, p.stageName || p.name),
-          p.emergencyAvailable ? h('span', { class: 'badge emergency' }, 'Emergency OK') : null),
+        h('div', { class: 'row between', style: 'gap:6px' }, h('h3', { style: 'margin:0' }, p.stageName || p.name),          p.emergencyAvailable ? h('span', { class: 'badge emergency' }, 'Emergency OK') : null),
         h('p', { class: 'muted', style: 'margin:2px 0 0' }, [p.city, p.state, p.country].filter(Boolean).join(', ') || 'Location not set'),
         h('p', { class: 'stars', style: 'margin:2px 0 0' }, stars(p.avgRating)),
         h('div', { class: 'pill-row', style: 'margin-top:10px' }, (p.instruments || []).slice(0, 4).map((i) => h('span', { class: 'pill' }, i))),
@@ -1563,10 +1611,18 @@ async function openBookingModal(profile) {
   const backdrop = h('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) close(); } });
   function close() { backdrop.remove(); }
   let submitting = false;
-  const cardFieldWrap = h('div', {});
-  let cardHandle = null; // { card, errorEl } once mounted, only when Stripe is configured
+  const paypalWrap = h('div', { class: 'paypal-buttons-wrap' });
+  const applePayWrap = h('div', { class: 'paypal-buttons-wrap' });
 
-  const submitBtn = h('button', { onclick: onSubmit }, 'Send request');
+  function currentTotal() {
+    const offeredRate = parseFloat(v.offeredRate) || 0;
+    const duration = parseFloat(v.durationHours) || 0;
+    const subtotal = offeredRate * duration;
+    const serviceFee = Math.round(subtotal * paypalPublicConfig.serviceFeeRate * 100) / 100;
+    return Math.round((subtotal + serviceFee) * 100) / 100;
+  }
+
+  const submitBtn = h('button', { onclick: () => finalize(undefined) }, 'Send request');
   const modal = h('div', { class: 'modal' },
     h('h2', {}, `Request to hire ${profile.stageName || profile.name}`),
     h('div', { class: 'safety-notice' },
@@ -1585,44 +1641,40 @@ async function openBookingModal(profile) {
     h('label', { style: 'display:flex;align-items:center;gap:6px;font-weight:400;color:var(--text)' },
       h('input', { type: 'checkbox', style: 'width:auto', onchange: (e) => v.isGroup = e.target.checked }), 'This is a group booking'),
     h('label', {}, 'Group details (if applicable)'), h('input', { oninput: (e) => v.groupDetails = e.target.value }),
-    stripePublicConfig.configured ? h('label', {}, 'Payment card') : null,
-    stripePublicConfig.configured ? cardFieldWrap : null,
+    paypalPublicConfig.configured ? h('label', {}, 'Payment') : null,
+    paypalPublicConfig.configured ? applePayWrap : null,
+    paypalPublicConfig.configured ? paypalWrap : null,
     h('p', { class: 'muted', style: 'font-size:13px;margin-top:10px' },
-      stripePublicConfig.configured
-        ? "Your card is authorized now but only charged if the musician accepts. Funds are held and released to the musician after the event."
+      paypalPublicConfig.configured
+        ? "Approve with Apple Pay, PayPal, or a debit/credit card below. It's authorized now but only charged if the musician accepts. Funds are held and released to the musician after the event."
         : 'No real payment is collected yet — this marketplace is in demo mode until a payment processor is connected.'),
     h('div', { class: 'row', style: 'margin-top:16px' },
-      submitBtn,
+      paypalPublicConfig.configured ? null : submitBtn,
       h('button', { class: 'secondary', onclick: close }, 'Cancel'))
   );
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
 
-  if (stripePublicConfig.configured) {
+  if (paypalPublicConfig.configured) {
     try {
-      cardHandle = await mountCardElement(cardFieldWrap);
+      await renderPaypalButtons(paypalWrap, {
+        getAmountDollars: currentTotal,
+        onApproved: (orderId) => finalize(orderId),
+      });
     } catch (err) {
-      clear(cardFieldWrap);
-      cardFieldWrap.appendChild(h('p', { class: 'error-box' }, err.message));
+      clear(paypalWrap);
+      paypalWrap.appendChild(h('p', { class: 'error-box' }, err.message));
     }
+    renderApplePayButton(applePayWrap, { getAmountDollars: currentTotal, onApproved: (orderId) => finalize(orderId) });
   }
 
-  async function onSubmit() {
+  async function finalize(paypalOrderId) {
     if (submitting) return;
     submitting = true;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
     try {
-      let paymentMethodId;
-      if (stripePublicConfig.configured) {
-        if (!cardHandle) throw new Error('The payment form did not load — please try again.');
-        paymentMethodId = await collectPaymentMethod(cardHandle.card, cardHandle.errorEl);
-      }
-      const data = await api('POST', '/api/bookings', { musicianProfileId: profile.id, ...v, paymentMethodId });
-      if (data.requiresAction) {
-        await resolveRequiresAction(data.clientSecret);
-        await api('POST', `/api/bookings/${data.booking.id}/confirm-payment`);
-      }
+      await api('POST', '/api/bookings', { musicianProfileId: profile.id, ...v, paypalOrderId });
       close();
       navigate('clientDashboard', {}, { type: 'success', message: 'Booking request sent!' });
     } catch (err) {
@@ -1669,16 +1721,49 @@ function openDisputeModal(target) {
 }
 
 function openCounterRespondModal(booking) {
+  // Accepting at the countered rate means a new total, and PayPal has no
+  // way to silently change an already-authorized amount — so, when PayPal
+  // is configured, accepting means approving a brand-new payment for that
+  // new total right here before the server will act on it. See
+  // reauthorizeAndCapture in server/lib/payments.js.
+  const subtotal = booking.counterRate * booking.durationHours;
+  const serviceFee = Math.round(subtotal * paypalPublicConfig.serviceFeeRate * 100) / 100;
+  const newTotal = Math.round((subtotal + serviceFee) * 100) / 100;
+  let accepting = false;
+  const paypalWrap = h('div', { class: 'paypal-buttons-wrap' });
+  const applePayWrap = h('div', { class: 'paypal-buttons-wrap' });
+  const acceptBtn = h('button', { onclick: () => acceptCounter(undefined) }, 'Accept counter');
   const backdrop = h('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) close(); } });
   function close() { backdrop.remove(); }
   backdrop.appendChild(h('div', { class: 'modal' },
     h('h2', {}, 'Counter-offer received'),
     h('p', {}, `The musician countered at ${money(booking.counterRate)}/hr for ${booking.eventDate}.`),
     booking.counterNote ? h('p', { class: 'muted' }, `"${booking.counterNote}"`) : null,
+    paypalPublicConfig.configured ? h('p', { class: 'muted', style: 'font-size:13px' }, `Accepting charges the new total of ${money(newTotal)} — approve it below.`) : null,
+    paypalPublicConfig.configured ? applePayWrap : null,
+    paypalPublicConfig.configured ? paypalWrap : null,
     h('div', { class: 'row', style: 'margin-top:14px' },
-      h('button', { onclick: async () => { await bookingAction(booking.id, '/counter-response', { action: 'accept' }); close(); } }, 'Accept counter'),
+      paypalPublicConfig.configured ? null : acceptBtn,
       h('button', { class: 'danger', onclick: async () => { await bookingAction(booking.id, '/counter-response', { action: 'decline' }); close(); } }, 'Decline'))));
   document.body.appendChild(backdrop);
+
+  if (paypalPublicConfig.configured) {
+    renderPaypalButtons(paypalWrap, {
+      getAmountDollars: () => newTotal,
+      onApproved: (orderId) => acceptCounter(orderId),
+    }).catch((err) => {
+      clear(paypalWrap);
+      paypalWrap.appendChild(h('p', { class: 'error-box' }, err.message));
+    });
+    renderApplePayButton(applePayWrap, { getAmountDollars: () => newTotal, onApproved: (orderId) => acceptCounter(orderId) });
+  }
+
+  async function acceptCounter(paypalOrderId) {
+    if (accepting) return;
+    accepting = true;
+    await bookingAction(booking.id, '/counter-response', { action: 'accept', paypalOrderId });
+    close();
+  }
 }
 
 function openRespondModal(booking) {
@@ -1773,45 +1858,42 @@ function BookingCard(booking, viewerRole) {
     h('div', { class: 'row', style: 'margin-top:8px' }, actions));
 }
 
-/* ---------- Stripe Connect (seller payouts) ---------- */
-// Shared "connect a payout account" card for the musician and equipment-
-// owner dashboards. Clicking the button asks the server for a fresh
-// onboarding link and sends the browser there — Stripe's own hosted form
-// (or, until a real STRIPE_SECRET_KEY is configured on the server, an
-// instant demo link that simulates a finished signup) — then back to
-// /?stripeConnectReturn=1, which init() below picks up the same way it
-// already does for ?resetToken=/?consentToken=.
-function StripeConnectCard(profile) {
-  const connected = !!(profile && profile.stripeConnected);
-  const payoutsEnabled = !!(profile && profile.stripePayoutsEnabled);
-  let connecting = false;
+/* ---------- PayPal payouts (seller payouts) ---------- */
+// Shared "where should your payouts go" card for the musician and
+// equipment-owner dashboards. Unlike the old Stripe Connect flow this is
+// just an email address saved directly to the profile — no redirect to a
+// hosted onboarding form and back.
+function PaypalConnectCard(profile) {
+  const connected = !!(profile && profile.paypalConnected);
+  let saving = false;
+  let email = (profile && profile.paypalEmail) || '';
   const wrap = h('div', {});
   const rerender = () => { clear(wrap); wrap.appendChild(build()); };
 
-  async function connect() {
-    connecting = true; rerender();
+  async function save() {
+    if (!email) { showBanner('error', 'Enter your PayPal email first'); return; }
+    saving = true; rerender();
     try {
-      const data = await api('POST', '/api/stripe/connect/start');
-      window.location.href = data.url;
+      await api('POST', '/api/paypal/connect', { email });
+      showBanner('success', 'Saved — your PayPal payout email is on file.');
+      if (state.user.role === 'musician') state.musicianProfile.paypalConnected = true;
+      else state.equipmentOwnerProfile.paypalConnected = true;
     } catch (err) {
-      connecting = false;
       showBanner('error', err.message);
-      rerender();
     }
+    saving = false; rerender();
   }
 
   function build() {
     const children = [h('h2', {}, 'Get paid')];
-    if (payoutsEnabled) {
-      children.push(h('p', { class: 'success-box' }, "✓ Your Stripe account is connected — you're set up to be paid out for completed bookings/rentals."));
-      children.push(h('button', { type: 'button', class: 'secondary', disabled: connecting, onclick: connect }, connecting ? 'Opening…' : 'Update payout details'));
-    } else if (connected) {
-      children.push(h('p', { class: 'muted' }, "You started connecting a Stripe account, but it isn't finished yet — Stripe still needs a bit more information before you can be paid out."));
-      children.push(h('button', { type: 'button', disabled: connecting, onclick: connect }, connecting ? 'Opening…' : 'Finish connecting Stripe'));
+    if (connected) {
+      children.push(h('p', { class: 'success-box' }, "✓ Payouts for completed bookings/rentals go to your PayPal account."));
     } else {
-      children.push(h('p', { class: 'muted' }, "Connect a Stripe account so you can be paid out once a client's booking or rental is marked complete. This is free to set up and takes a few minutes — no money moves until a client actually books you."));
-      children.push(h('button', { type: 'button', disabled: connecting, onclick: connect }, connecting ? 'Opening…' : 'Connect with Stripe'));
+      children.push(h('p', { class: 'muted' }, "Add the email address for your PayPal account so you can be paid out once a client's booking or rental is marked complete. No money moves until a client actually books you."));
     }
+    children.push(h('label', {}, 'PayPal email'));
+    children.push(h('input', { type: 'email', value: email, placeholder: 'you@example.com', oninput: (e) => email = e.target.value }));
+    children.push(h('button', { type: 'button', style: 'margin-top:10px', disabled: saving, onclick: save }, saving ? 'Saving…' : (connected ? 'Update PayPal email' : 'Save PayPal email')));
     return h('div', { class: 'card' }, children);
   }
   wrap.appendChild(build());
@@ -1961,7 +2043,7 @@ function MusicianDashboardPage() {
   wrap.appendChild(Tabs([['profile', 'My Profile'], ['payments', 'Payments'], ['bookings', 'Incoming Bookings'], ['jobResponses', 'Job Responses']], tab, (t) => { state.params.tab = t; render(); }));
 
   if (tab === 'profile') wrap.appendChild(MusicianProfileForm());
-  else if (tab === 'payments') wrap.appendChild(StripeConnectCard(state.musicianProfile));
+  else if (tab === 'payments') wrap.appendChild(PaypalConnectCard(state.musicianProfile));
   else if (tab === 'jobResponses') wrap.appendChild(MusicianJobResponsesSection());
   else wrap.appendChild(musicianData.bookings.length
     ? h('div', {}, musicianData.bookings.map((b) => BookingCard(b, 'musician')))
@@ -2163,8 +2245,7 @@ function MusicianProfileForm() {
         ) : h('p', { class: 'muted', style: 'margin:6px 0 0' }, 'No gallery photos yet.')
       ),
       h('label', {}, 'Stage name'), h('input', { value: v.stageName, oninput: (e) => v.stageName = e.target.value }),
-      h('label', {}, 'Bio'), h('textarea', { rows: 3, oninput: (e) => v.bio = e.target.value }, v.bio),
-      h('label', {}, 'Hourly rate ($)'), h('input', { type: 'number', value: v.hourlyRate, oninput: (e) => v.hourlyRate = e.target.value }),
+      h('label', {}, 'Bio'), h('textarea', { rows: 3, oninput: (e) => v.bio = e.target.value }, v.bio),      h('label', {}, 'Hourly rate ($)'), h('input', { type: 'number', value: v.hourlyRate, oninput: (e) => v.hourlyRate = e.target.value }),
       h('label', {}, 'Country'), h('select', { onchange: (e) => {
         v.country = e.target.value;
         if (STATES_BY_COUNTRY[v.country] && !STATES_BY_COUNTRY[v.country].includes(v.state)) v.state = '';
@@ -2334,7 +2415,7 @@ function OwnerDashboardPage() {
   wrap.appendChild(Tabs([['profile', 'My Profile'], ['payments', 'Payments'], ['listings', 'My Listings'], ['rentals', 'Incoming Rentals']], tab, (t) => { state.params.tab = t; render(); }));
 
   if (tab === 'profile') wrap.appendChild(OwnerProfileForm());
-  else if (tab === 'payments') wrap.appendChild(StripeConnectCard(state.equipmentOwnerProfile));
+  else if (tab === 'payments') wrap.appendChild(PaypalConnectCard(state.equipmentOwnerProfile));
   else if (tab === 'listings') wrap.appendChild(OwnerListingsSection());
   else wrap.appendChild(ownerData.rentals.length
     ? h('div', {}, ownerData.rentals.map((r) => RentalCard(r, 'owner')))
@@ -2518,9 +2599,9 @@ async function openRentalModal(eq) {
       if (days > 0) {
         const rentalFee = eq.dailyRate * days;
         // Mirrors the server's live SERVICE_FEE_RATE (fetched into
-        // stripePublicConfig at startup) rather than a hardcoded rate, so
+        // paypalPublicConfig at startup) rather than a hardcoded rate, so
         // this estimate never drifts from what's actually charged.
-        const serviceFee = Math.round(rentalFee * stripePublicConfig.serviceFeeRate * 100) / 100;
+        const serviceFee = Math.round(rentalFee * paypalPublicConfig.serviceFeeRate * 100) / 100;
         const total = Math.round((rentalFee + serviceFee + eq.securityDeposit) * 100) / 100;
         estimate.textContent = `${days} day(s): ${money(rentalFee)} rental + ${money(serviceFee)} service fee + ${money(eq.securityDeposit)} deposit = ${money(total)}`;
         return;
@@ -2528,51 +2609,55 @@ async function openRentalModal(eq) {
     }
     estimate.textContent = '';
   }
+  function currentTotal() {
+    if (!v.startDate || !v.endDate) return 0;
+    const days = Math.round((new Date(v.endDate) - new Date(v.startDate)) / 86400000) + 1;
+    if (days < 1) return 0;
+    const rentalFee = eq.dailyRate * days;
+    const serviceFee = Math.round(rentalFee * paypalPublicConfig.serviceFeeRate * 100) / 100;
+    return Math.round((rentalFee + serviceFee + eq.securityDeposit) * 100) / 100;
+  }
   let submitting = false;
-  const cardFieldWrap = h('div', {});
-  let cardHandle = null;
-  const submitBtn = h('button', { onclick: onSubmit }, 'Send request');
+  const paypalWrap = h('div', { class: 'paypal-buttons-wrap' });
+  const applePayWrap = h('div', { class: 'paypal-buttons-wrap' });
+  const submitBtn = h('button', { onclick: () => finalize(undefined) }, 'Send request');
   backdrop.appendChild(h('div', { class: 'modal' },
     h('h2', {}, `Rent "${eq.title}"`),
     h('label', {}, 'Start date'), h('input', { type: 'date', required: true, oninput: (e) => { v.startDate = e.target.value; updateEstimate(); } }),
     h('label', {}, 'End date'), h('input', { type: 'date', required: true, oninput: (e) => { v.endDate = e.target.value; updateEstimate(); } }),
     estimate,
-    stripePublicConfig.configured ? h('label', {}, 'Payment card') : null,
-    stripePublicConfig.configured ? cardFieldWrap : null,
+    paypalPublicConfig.configured ? h('label', {}, 'Payment') : null,
+    paypalPublicConfig.configured ? applePayWrap : null,
+    paypalPublicConfig.configured ? paypalWrap : null,
     h('p', { class: 'muted', style: 'font-size:13px;margin-top:10px' },
-      stripePublicConfig.configured
-        ? 'Your card is authorized now but only charged if the owner accepts. The security deposit portion is refunded to you when the rental is marked complete.'
+      paypalPublicConfig.configured
+        ? 'Approve with Apple Pay, PayPal, or a debit/credit card below. It’s authorized now but only charged if the owner accepts. The security deposit portion is refunded to you when the rental is marked complete.'
         : 'No real payment is collected yet — this marketplace is in demo mode until a payment processor is connected.'),
     h('div', { class: 'row', style: 'margin-top:14px' },
-      submitBtn,
+      paypalPublicConfig.configured ? null : submitBtn,
       h('button', { class: 'secondary', onclick: close }, 'Cancel'))));
   document.body.appendChild(backdrop);
 
-  if (stripePublicConfig.configured) {
+  if (paypalPublicConfig.configured) {
     try {
-      cardHandle = await mountCardElement(cardFieldWrap);
+      await renderPaypalButtons(paypalWrap, {
+        getAmountDollars: currentTotal,
+        onApproved: (orderId) => finalize(orderId),
+      });
     } catch (err) {
-      clear(cardFieldWrap);
-      cardFieldWrap.appendChild(h('p', { class: 'error-box' }, err.message));
+      clear(paypalWrap);
+      paypalWrap.appendChild(h('p', { class: 'error-box' }, err.message));
     }
+    renderApplePayButton(applePayWrap, { getAmountDollars: currentTotal, onApproved: (orderId) => finalize(orderId) });
   }
 
-  async function onSubmit() {
+  async function finalize(paypalOrderId) {
     if (submitting) return;
     submitting = true;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
     try {
-      let paymentMethodId;
-      if (stripePublicConfig.configured) {
-        if (!cardHandle) throw new Error('The payment form did not load — please try again.');
-        paymentMethodId = await collectPaymentMethod(cardHandle.card, cardHandle.errorEl);
-      }
-      const data = await api('POST', '/api/rentals', { equipmentId: eq.id, ...v, paymentMethodId });
-      if (data.requiresAction) {
-        await resolveRequiresAction(data.clientSecret);
-        await api('POST', `/api/rentals/${data.rental.id}/confirm-payment`);
-      }
+      await api('POST', '/api/rentals', { equipmentId: eq.id, ...v, paypalOrderId });
       close();
       navigate('clientDashboard', { tab: 'rentals' }, { type: 'success', message: 'Rental request sent!' });
     } catch (err) {
@@ -2879,15 +2964,13 @@ function AdminPage() {
 /* ================= INIT ================= */
 async function init() {
   try { await refreshMe(); await refreshNotifications(); } catch (e) { /* not logged in */ }
-  await refreshStripePublicConfig();
+  await refreshPaypalPublicConfig();
   // A password-reset email link lands here as /?resetToken=... — route
   // straight to the reset-password screen and strip the token from the
   // visible URL so it doesn't linger in history/bookmarks.
   const urlParams = new URLSearchParams(window.location.search);
   const resetToken = urlParams.get('resetToken');
   const consentToken = urlParams.get('consentToken');
-  const stripeConnectReturn = urlParams.get('stripeConnectReturn');
-  const stripeConnectRefresh = urlParams.get('stripeConnectRefresh');
   if (resetToken) {
     state.page = 'resetPassword';
     state.params = { token: resetToken };
@@ -2896,32 +2979,6 @@ async function init() {
     state.page = 'consent';
     state.params = { token: consentToken };
     window.history.replaceState({}, '', window.location.pathname);
-  } else if ((stripeConnectReturn || stripeConnectRefresh) && state.user &&
-             (state.user.role === 'musician' || state.user.role === 'equipment_owner')) {
-    // Landed back from Stripe's hosted onboarding (or its own demo-mode
-    // stand-in — see StripeConnectCard above). stripeConnectRefresh means
-    // the onboarding *link* itself expired before they got anywhere, so
-    // there's nothing new to check — just send them back to try again.
-    // stripeConnectReturn means they went through the flow, so ask the
-    // server to check the account's real status with Stripe before
-    // reporting back.
-    window.history.replaceState({}, '', window.location.pathname);
-    state.page = state.user.role === 'musician' ? 'musicianDashboard' : 'ownerDashboard';
-    state.params = { tab: 'payments' };
-    if (stripeConnectReturn) {
-      try {
-        const data = await api('POST', '/api/stripe/connect/refresh');
-        await refreshMe();
-        state.banner = {
-          type: data.payoutsEnabled ? 'success' : 'error',
-          message: data.payoutsEnabled
-            ? "You're connected — your Stripe account is ready to receive payouts."
-            : "We saved your progress, but Stripe still needs a bit more information before payouts can turn on. You can finish any time from Payments.",
-        };
-      } catch (err) {
-        state.banner = { type: 'error', message: err.message };
-      }
-    }
   }
   render();
   loadPageData();

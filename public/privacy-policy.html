@@ -165,14 +165,18 @@
 
   <h3>Payment information</h3>
   <p>
-    Card details are collected and processed directly by our payment processor, Stripe — we never
-    see or store your full card number. We do store the booking or rental amount, the payment's
-    status (for example, authorized, charged, refunded, or paid out), and an internal reference id
-    Stripe gives us for that payment. If you create a musician or equipment-owner profile and
-    connect a payout account, Stripe also collects identity and bank-account information directly
-    from you as part of that account-connection process (Stripe Connect) — we only see whether that
-    account is connected and able to receive payouts, not the underlying bank or identity details.
-    See Stripe's own privacy policy for how they handle that information.
+    Payments are collected and processed directly by PayPal — whether you pay with a PayPal
+    balance/bank account, a debit/credit card through PayPal's guest checkout, or Apple Pay, we
+    never see or store your full card number, PayPal login credentials, or Apple Pay details (for
+    an Apple Pay payment, PayPal and Apple handle that exchange directly; we only ever receive a
+    one-time payment token). We do store the booking or rental
+    amount, the payment's status (for example, authorized, charged, refunded, or paid out), and an
+    internal order/authorization/capture reference id PayPal gives us for that payment. If you
+    create a musician or equipment-owner profile and add a payout email so you can be paid, that's
+    the PayPal account email address you give us directly — we send payouts to it through PayPal's
+    Payouts service but don't otherwise see into that PayPal account. See
+    <a href="https://www.paypal.com/privacy">PayPal's own privacy policy</a> for how they handle
+    information processed on their end.
   </p>
 
   <h3>Session &amp; technical information</h3>
