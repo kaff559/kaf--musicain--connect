@@ -90,4 +90,22 @@ review) works out of the box with zero setup.
 ID verification is a one-click demo toggle, not a real identity check.
 
 ## Project structure
+
+```
+server/
+  server.js           entry point — HTTP server + static file serving
+  db.js               SQLite schema (auto-created on first run)
+  lib/
+    router.js          tiny hand-written router + JSON body parsing
+    auth.js             password hashing, sessions, cookies
+    helpers.js           shared request/response helpers
+    state-centroids.js    rough US state coordinates for the mile-radius search
+  routes/               one file per API area (auth, musicians, bookings, ...)
+  scripts/create-admin.js
+public/
+  index.html, app.js, styles.css   the whole frontend (vanilla JS, no build step)
+data/
+  app.db                created automatically, not committed to git
+```
+
 See `DEPLOY.md` for how to put this on Railway or Render.
