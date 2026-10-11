@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+echo "Installing npm dependencies..."
+cd "$CI_PRIMARY_REPOSITORY_PATH/mobile"
+npm install
+
+echo "Installing CocoaPods dependencies..."
+cd "$CI_PRIMARY_REPOSITORY_PATH/mobile/ios/App"
+pod install
+
+echo "ci_post_clone.sh completed successfully"
