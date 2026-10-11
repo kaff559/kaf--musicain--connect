@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+echo "Installing Node.js via Homebrew..."
+brew install node
+
 echo "Installing npm dependencies..."
 cd "$CI_PRIMARY_REPOSITORY_PATH/mobile"
 npm install
