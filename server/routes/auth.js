@@ -81,7 +81,11 @@ function register(router) {
     }
 
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(String(email).toLowerCase());
-    if (existing) throw new HttpError(409, 'An account with this email already exists');
+    // Defensive: on rare occasions this driver has returned a row-shaped
+    // object with every column null instead of undefined when nothing
+    // actually matched (seen in production 2026-10-12) — treat a null id
+    // the same as "no row found" rather than a real duplicate.
+    if (existing && existing.id != null) throw new HttpError(409, 'An account with this email already exists');
 
     const { hash, salt } = auth.hashPassword(password);
     const consentStatus = isMinor ? 'pending' : 'not_required';

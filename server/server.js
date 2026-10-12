@@ -23,7 +23,6 @@ require('./routes/admin').register(router);
 require('./routes/reports').register(router);
 require('./routes/disputes').register(router);
 require('./routes/paypal').register(router);
-require('./routes/temp-debug').register(router);
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 // Uploaded demo files live under data/uploads (not public/) so they sit on

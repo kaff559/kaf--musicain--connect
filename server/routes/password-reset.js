@@ -41,13 +41,11 @@ function register(router) {
     forgotLimiterEmail(ctx);
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());
-    if (!user) return generic;
-    // TEMP DEBUG (2026-10-12): tracking down a NOT NULL constraint failure
-    // on password_reset_tokens.user_id — remove once root-caused.
-    if (user.id === undefined || user.id === null) {
-      console.error('[debug forgot-password] user row missing id:', JSON.stringify(user));
-      return generic;
-    }
+    // Defensive: on rare occasions this driver has returned a row-shaped
+    // object with every column null instead of undefined when nothing
+    // actually matched (seen in production 2026-10-12) — treat a null id
+    // the same as "no row found" rather than crashing on the insert below.
+    if (!user || user.id == null) return generic;
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
