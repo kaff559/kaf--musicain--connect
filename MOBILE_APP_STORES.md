@@ -80,11 +80,11 @@ the version in this project.)
 
 1. Install [Android Studio](https://developer.android.com/studio) (free).
 2. In the project folder:
-   ```bash
+```bash
    npx cap add android
    npx cap copy android
    npx cap open android
-   ```
+```
    This opens the generated `android/` project in Android Studio.
 3. Replace the default icons with the ones I generated:
    - `store-assets/android/adaptive-icon-foreground.png` and
@@ -121,19 +121,19 @@ drive, or cloning the same git repo):
    starting early). Also install [Node.js](https://nodejs.org) on the Mac if
    it isn't already there.
 2. Install CocoaPods, which Capacitor's iOS build needs:
-   ```bash
+```bash
    sudo gem install cocoapods
-   ```
+```
 3. Run Step 2 (installing the Capacitor CLI and `npx cap init`) on the Mac
    if you haven't already run it elsewhere — `node_modules` and the
    `ios`/`android` folders aren't committed to git, so each machine that
    builds needs its own `npm install`.
 4. Add and copy the iOS platform:
-   ```bash
+```bash
    npx cap add ios
    npx cap copy ios
    npx cap open ios
-   ```
+```
    This opens `ios/App/App.xcworkspace` in Xcode.
 5. Replace the app icon with `store-assets/ios/icon-1024.png` — drag it
    into the `AppIcon` entry in `Assets.xcassets`; Xcode 14+ generates every
@@ -160,14 +160,14 @@ free, so that's the path above.
 
 ## A couple of things reviewers may flag
 
-- **No live payment processor** — booking/rental amounts are calculated
-  and stored but no money actually moves yet (see `README.md`). If you
-  plan to charge for bookings inside the app, Apple in particular has
+- **Payments run through PayPal** (see `README.md`/`DEPLOY.md`) — real
+  money only moves once `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` are set on
+  the deployed backend; until then it's demo mode. Apple in particular has
   rules about when Apple's own in-app purchase system is required versus
   when external payment is fine — since this books real-world services
-  (like Uber or a contractor-booking app), external payment is normally
-  allowed, but it's worth a quick read of Apple's guideline 3.1.3 before
-  submitting if you're taking real payments by then.
+  (like Uber or a contractor-booking app), external payment through PayPal
+  is normally allowed, but it's worth a quick read of Apple's guideline
+  3.1.3 before submitting once you're taking real payments.
 - **Account deletion** — both stores require a way for users to delete
   their account from inside the app, not just contact support. This is
   now built in: logged-in users can go to **Account** in the nav bar →

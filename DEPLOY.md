@@ -8,15 +8,15 @@ storage**, or your data disappears on every redeploy/restart.
 ## Option A: Railway (recommended — simplest)
 
 1. Install the CLI and log in:
-   ```bash
+```bash
    npm install -g @railway/cli   # run this on your own machine, not in this sandbox
    railway login
-   ```
+```
 2. From the `musician-connect-app` folder:
-   ```bash
+```bash
    railway init
    railway up
-   ```
+```
    Railway detects `package.json`, installs nothing (there are no
    dependencies), and runs the `start` script (`node --experimental-sqlite
    server/server.js`).
@@ -31,9 +31,9 @@ storage**, or your data disappears on every redeploy/restart.
 4. Railway sets `PORT` automatically; the server already reads
    `process.env.PORT`, so no config needed there.
 5. Create your admin account against the deployed app:
-   ```bash
+```bash
    railway run npm run create-admin -- you@yourdomain.com "a-strong-password" "Your Name"
-   ```
+```
 6. Open the generated `*.up.railway.app` URL (or attach a custom domain in
    the dashboard) — that's the whole app, frontend and API together.
 
@@ -57,11 +57,48 @@ a host's build logs show it picked an older Node, set the version
 explicitly in that platform's settings (Railway: `NIXPACKS_NODE_VERSION`
 environment variable; Render: the `NODE_VERSION` environment variable).
 
+## Turning on real payments (PayPal)
+
+Booking/rental payments run through PayPal (see `server/lib/paypal.js`),
+but **run in demo mode — no money moves — until you set these** on your
+host (Railway: Variables tab; Render: Environment tab):
+
+- `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` — from a PayPal app at
+  [developer.paypal.com](https://developer.paypal.com/dashboard/applications) →
+  create an app → copy its Client ID and Secret. Use a **Sandbox** app's
+  credentials first to test the whole flow (request → accept → payout) with
+  fake money, then switch to a **Live** app's credentials when ready.
+- `PAYPAL_ENV` — `sandbox` (default) while testing, `live` once you switch
+  to live credentials.
+
+Sellers (musicians, equipment owners) add the PayPal email address their
+payouts should go to from their own dashboard's Payments tab — no separate
+setup needed on your end for that part.
+
+### Also accepting Apple Pay
+
+Apple Pay shows up as an extra button next to the PayPal/card ones —
+automatically, once three more things are true:
+
+1. **Apple Pay is enabled on your PayPal business account** — PayPal
+   dashboard → Account Settings → Apple Pay (only shows up for a Business
+   account, not Personal). PayPal walks you through verifying your domain
+   with Apple as part of this.
+2. **The domain-verification file that step gives you** is saved at
+   `public/.well-known/apple-developer-merchantid-domain-association`
+   (create the `.well-known` folder — it needs to be served at exactly that
+   path, no extension, from your real domain).
+3. **You're on a real HTTPS domain** — Apple Pay refuses to offer itself on
+   `localhost` or a bare IP address, even in testing.
+
+Until all three are done, nothing breaks — the button's own feature
+detection just means it never appears, same as the PayPal buttons before
+`PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` are set. It also only ever shows
+up in Safari on an Apple device with a card in Wallet, since that's the
+only browser that implements Apple Pay at all.
+
 ## Before you invite real users
 
-- **No payment processor is wired up.** Booking/rental totals, service
-  fees, and deposits are all calculated and stored, but no money actually
-  moves. Add Stripe (or similar) before charging anyone for real.
 - **Back up `data/app.db` regularly** once it holds real data — it's a
   single SQLite file, so `railway volume` snapshots or a simple scheduled
   `sqlite3 data/app.db ".backup ..."` job both work fine.

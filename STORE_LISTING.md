@@ -25,33 +25,33 @@ marketplace for renting event equipment like speakers, microphones, drum
 kits, DJ gear, and lighting.
 
 FOR CLIENTS
-• Search by instrument, genre, city, or budget — try natural language like
+- Search by instrument, genre, city, or budget — try natural language like
   "gospel piano player under $100 an hour"
-• View real profiles: bio, hourly rate, genres, media, and reviews from
+- View real profiles: bio, hourly rate, genres, media, and reviews from
   past clients
-• Send a booking request with your event date, time, and location
-• Message back and forth with counter-offers until you agree on a rate
-• Leave a star rating and review after your event
-• Need gear instead of (or in addition to) a performer? Browse and rent
+- Send a booking request with your event date, time, and location
+- Message back and forth with counter-offers until you agree on a rate
+- Leave a star rating and review after your event
+- Need gear instead of (or in addition to) a performer? Browse and rent
   speakers, mics, drum kits, DJ equipment, and lighting from local owners
 
 FOR MUSICIANS, SINGERS, MCs & DJs
-• Build a profile: stage name, instruments, genres, hourly rate, bio, and
+- Build a profile: stage name, instruments, genres, hourly rate, bio, and
   media
-• Mark yourself available for emergency or last-minute bookings
-• Accept, decline, or counter-offer incoming booking requests
-• Track upcoming and past bookings in one dashboard
-• Build your reputation with client reviews
+- Mark yourself available for emergency or last-minute bookings
+- Accept, decline, or counter-offer incoming booking requests
+- Track upcoming and past bookings in one dashboard
+- Build your reputation with client reviews
 
 FOR EQUIPMENT OWNERS
-• List your gear with photos, a daily rate, and a refundable security
+- List your gear with photos, a daily rate, and a refundable security
   deposit
-• Manage incoming rental requests and track rental history
+- Manage incoming rental requests and track rental history
 
 TRUST & SAFETY
-• Real accounts with secure password protection
-• Report or file a dispute on any booking or rental
-• Delete your account and data at any time from inside the app
+- Real accounts with secure password protection
+- Report or file a dispute on any booking or rental
+- Delete your account and data at any time from inside the app
 
 Whether you're planning a wedding, a party, a church service, or a show —
 or you're the musician, MC, DJ, or gear owner other people are searching
@@ -95,10 +95,12 @@ musician,booking,DJ,MC,singer,live music,event,wedding,equipment rental,gear,chu
 
 ## Notes
 
-- Neither store listing should claim in-app payment processing yet — the
-  app calculates and displays fees/totals, but no payment processor is
-  wired up (see `README.md`). If that changes, update the copy to mention
-  it.
+- Payments run through PayPal (including Apple Pay and guest debit/credit
+  card) but stay in demo mode — no money moves — until
+  `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` are set on the deployed backend
+  (see `DEPLOY.md`). Don't claim real payment processing in either store
+  listing until those are set and you've tested a real booking/rental end
+  to end.
 - Both stores will ask for your privacy policy URL — that's
   `https://YOUR-LIVE-DOMAIN/privacy-policy.html` once deployed.
 - Screenshots: both stores require at least 2 (Play) or a device-specific

@@ -321,35 +321,37 @@ CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_hash ON parental_consent_
 CREATE INDEX IF NOT EXISTS idx_parental_consent_tokens_user ON parental_consent_tokens(user_id);
 `);
 
-// --- Stripe Connect (seller payouts) --------------------------------------
-// Express account id + a cached payouts-enabled flag per seller profile.
-// Signing up and using the app never requires this — these stay empty until
-// a seller chooses to connect, and nothing here is required for a client or
-// musician/equipment-owner account to exist or be free to create. The flag
-// is refreshed from Stripe (or, in demo/no-API-key mode, set directly) when
-// the seller returns from onboarding — see server/routes/stripe-connect.js
-// and server/lib/stripe.js.
-ensureColumn('musician_profiles', 'stripe_account_id', 'stripe_account_id TEXT');
-ensureColumn('musician_profiles', 'stripe_payouts_enabled', 'stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0');
-ensureColumn('equipment_owner_profiles', 'stripe_account_id', 'stripe_account_id TEXT');
-ensureColumn('equipment_owner_profiles', 'stripe_payouts_enabled', 'stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0');
+// --- PayPal payouts (seller payouts) --------------------------------------
+// The PayPal email address a seller's payouts should go to. Signing up and
+// using the app never requires this — it stays empty until a seller chooses
+// to connect, and nothing here is required for a client or
+// musician/equipment-owner account to exist or be free to create. Unlike
+// the old Stripe Connect approach, there's no separate account-linking step
+// or enabled/not-enabled distinction — see server/routes/paypal.js and
+// server/lib/paypal.js.
+ensureColumn('musician_profiles', 'paypal_email', 'paypal_email TEXT');
+ensureColumn('equipment_owner_profiles', 'paypal_email', 'paypal_email TEXT');
 
-// --- Stripe payments (charge at acceptance, payout at completion) --------
+// --- PayPal payments (charge at acceptance, payout at completion) --------
 // payment_status tracks the money side of a booking/rental separately from
 // its own workflow `status` column:
-//   none            - no payment attached yet (shouldn't happen for a row
-//                      created after this migration, kept as the default so
-//                      old rows don't look like they have a real charge)
-//   requires_action - card needs 3D Secure before the hold can be placed
-//   authorized      - a hold is on the client's card, nothing captured yet
-//   captured        - charged; funds held by the platform until completion
-//   canceled        - the hold was released without ever charging the card
-//   refunded        - captured funds were returned to the client in full
-//   transferred     - the seller's payout for this booking/rental was sent
-//   failed          - the card could not be authorized/captured
-// transfer_id is the Stripe Transfer that paid the seller out (bookings and
-// rentals); rentals also get deposit_refund_id for the separate refund of
-// the refundable security deposit back to the client at completion.
+//   none       - no payment attached yet (shouldn't happen for a row
+//                created after this migration, kept as the default so old
+//                rows don't look like they have a real charge)
+//   authorized - a hold is on the client's PayPal order, nothing captured
+//   captured   - charged; funds held by the platform until completion
+//   canceled   - the hold was released without ever charging
+//   refunded   - captured funds were returned to the client in full
+//   transferred - the seller's payout for this booking/rental was sent
+//   failed     - the payment could not be authorized/captured
+// payment_intent_id holds whichever PayPal id is currently valid for the
+// next operation — an authorization id while payment_status is
+// 'authorized', then a capture id once it's 'captured' (PayPal, unlike
+// Stripe, uses a different id at each stage; lib/payments.js is what
+// returns the right one for callers to persist). transfer_id is the
+// PayPal Payouts batch id that paid the seller out (bookings and rentals);
+// rentals also get deposit_refund_id for the separate refund of the
+// refundable security deposit back to the client at completion.
 ensureColumn('bookings', 'payment_intent_id', 'payment_intent_id TEXT');
 ensureColumn('bookings', 'payment_status', "payment_status TEXT NOT NULL DEFAULT 'none'");
 ensureColumn('bookings', 'transfer_id', 'transfer_id TEXT');

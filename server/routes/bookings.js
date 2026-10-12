@@ -5,7 +5,6 @@ const { HttpError } = require('../lib/router');
 const {
   requireAuth, requireRole, requireConsentCleared, notify, calcServiceFee, serializeBooking,
 } = require('../lib/helpers');
-const stripe = require('../lib/stripe');
 const payments = require('../lib/payments');
 
 function loadBooking(id) {
@@ -21,10 +20,11 @@ function musicianProfileOwnerCheck(user, profileId) {
 }
 
 function register(router) {
-  // Create a booking request (client -> musician). A card is authorized
-  // (held, not charged) for the full amount right away — see
-  // server/lib/payments.js — and only actually charged once the musician
-  // accepts, in /respond below.
+  // Create a booking request (client -> musician). The client already
+  // approved a PayPal order for the full amount client-side (see
+  // POST /api/paypal/orders and the PayPal buttons in public/app.js) — that
+  // order is authorized (held, not charged) right away, and only actually
+  // charged once the musician accepts, in /respond below.
   router.post('/api/bookings', async (ctx) => {
     const user = requireRole(ctx, 'client');
     requireConsentCleared(user);
@@ -56,13 +56,12 @@ function register(router) {
     try {
       auth = await payments.authorizePayment({
         amountDollars: total,
-        paymentMethodId: b.paymentMethodId,
+        paypalOrderId: b.paypalOrderId,
         metadata: { kind: 'booking', bookingId: String(bookingId) },
       });
     } catch (err) {
-      // No usable hold on the card — don't leave a booking request sitting
-      // around that the musician could accept with nothing actually backing
-      // it.
+      // No usable hold — don't leave a booking request sitting around that
+      // the musician could accept with nothing actually backing it.
       db.prepare('DELETE FROM bookings WHERE id = ?').run(bookingId);
       throw err;
     }
@@ -71,30 +70,7 @@ function register(router) {
 
     const booking = loadBooking(bookingId);
     notify(profile.user_id, `New${b.isEmergency ? ' EMERGENCY' : ''} booking request from ${user.name} for ${b.eventDate}`, b.isEmergency ? 'urgent' : 'booking');
-    const result = { booking: serializeBooking(booking) };
-    if (auth.requiresAction) {
-      result.requiresAction = true;
-      result.clientSecret = auth.clientSecret;
-    }
-    return result;
-  });
-
-  // Called by the frontend after it resolves a 3D Secure challenge with
-  // Stripe directly (stripe.confirmCardPayment) for a booking that came back
-  // from the create call above with requiresAction: true.
-  router.post('/api/bookings/:id/confirm-payment', async (ctx) => {
-    const user = requireRole(ctx, 'client');
-    const booking = loadBooking(ctx.params.id);
-    if (booking.client_user_id !== user.id) throw new HttpError(403, 'Not your booking');
-    if (booking.payment_status !== 'requires_action') {
-      return { booking: serializeBooking(booking) };
-    }
-    const newStatus = await payments.confirmPaymentAfterAction(booking.payment_intent_id);
-    db.prepare("UPDATE bookings SET payment_status = ?, updated_at = datetime('now') WHERE id = ?").run(newStatus, booking.id);
-    if (newStatus === 'failed') {
-      db.prepare("UPDATE bookings SET status = 'cancelled', cancellation_reason = 'Payment could not be authorized', updated_at = datetime('now') WHERE id = ?").run(booking.id);
-    }
-    return { booking: serializeBooking(loadBooking(booking.id)) };
+    return { booking: serializeBooking(booking) };
   });
 
   // List bookings relevant to the current user (as client, or as musician via their profile)
@@ -122,14 +98,12 @@ function register(router) {
     if (!['accept', 'decline', 'counter'].includes(action)) throw new HttpError(400, 'action must be accept, decline, or counter');
 
     if (action === 'accept') {
-      if (booking.payment_status === 'requires_action') {
-        throw new HttpError(400, "The client's payment hasn't finished authorizing yet — try again in a moment.");
-      }
       if (booking.payment_status !== 'authorized') {
         throw new HttpError(400, 'This booking has no valid payment hold to charge — the client may need to re-request.');
       }
-      const paymentStatus = await payments.capture(booking.payment_intent_id);
-      db.prepare("UPDATE bookings SET status='accepted', payment_status=?, updated_at=datetime('now') WHERE id=?").run(paymentStatus, booking.id);
+      const { paymentStatus, paymentIntentId } = await payments.capture(booking.payment_intent_id);
+      db.prepare("UPDATE bookings SET status='accepted', payment_status=?, payment_intent_id=?, updated_at=datetime('now') WHERE id=?")
+        .run(paymentStatus, paymentIntentId, booking.id);
       notify(booking.client_user_id, `Your booking request for ${booking.event_date} was accepted! Your card has been charged $${booking.total.toFixed(2)}.`, 'booking');
     } else if (action === 'decline') {
       const paymentStatus = await payments.releaseOrRefund(booking.payment_intent_id, booking.payment_status);
@@ -144,13 +118,18 @@ function register(router) {
     return { booking: serializeBooking(loadBooking(booking.id)) };
   });
 
-  // Client responds to a counter-offer: accept | decline
+  // Client responds to a counter-offer: accept | decline. Accepting at a
+  // new rate means a new total, and PayPal has no way to silently change
+  // an already-authorized amount — so the client approves a brand-new
+  // PayPal order for the new total client-side first (see
+  // openCounterRespondModal in public/app.js) and sends its id here as
+  // paypalOrderId.
   router.post('/api/bookings/:id/counter-response', async (ctx) => {
     const user = requireRole(ctx, 'client');
     const booking = loadBooking(ctx.params.id);
     if (booking.client_user_id !== user.id) throw new HttpError(403, 'Not your booking');
     if (booking.status !== 'countered') throw new HttpError(400, 'No active counter-offer on this booking');
-    const { action } = ctx.body;
+    const { action, paypalOrderId } = ctx.body;
     const profile = db.prepare('SELECT * FROM musician_profiles WHERE id = ?').get(booking.musician_profile_id);
 
     if (action === 'accept') {
@@ -158,15 +137,16 @@ function register(router) {
       const serviceFee = calcServiceFee(subtotal);
       const total = Math.round((subtotal + serviceFee) * 100) / 100;
       // Accepting a counter-offer *is* the acceptance for this booking — the
-      // original hold was for the old total, so re-authorize for the new
-      // one and capture in the same step rather than waiting for a separate
-      // accept action that doesn't exist on this path.
-      const paymentStatus = await payments.reauthorizeAndCapture({
-        paymentIntentId: booking.payment_intent_id, newAmountDollars: total,
+      // original hold was for the old total, so void it and authorize+
+      // capture the newly-approved order for the new one in the same step
+      // rather than waiting for a separate accept action that doesn't exist
+      // on this path.
+      const { paymentStatus, paymentIntentId } = await payments.reauthorizeAndCapture({
+        paymentIntentId: booking.payment_intent_id, newPaypalOrderId: paypalOrderId, newAmountDollars: total,
       });
       db.prepare(
-        "UPDATE bookings SET status='accepted', offered_rate=?, service_fee=?, total=?, payment_status=?, updated_at=datetime('now') WHERE id=?"
-      ).run(booking.counter_rate, serviceFee, total, paymentStatus, booking.id);
+        "UPDATE bookings SET status='accepted', offered_rate=?, service_fee=?, total=?, payment_status=?, payment_intent_id=?, updated_at=datetime('now') WHERE id=?"
+      ).run(booking.counter_rate, serviceFee, total, paymentStatus, paymentIntentId, booking.id);
       notify(profile.user_id, `Your counter-offer for ${booking.event_date} was accepted! The client's card has been charged $${total.toFixed(2)}.`, 'booking');
     } else if (action === 'decline') {
       const paymentStatus = await payments.releaseOrRefund(booking.payment_intent_id, booking.payment_status);
@@ -209,16 +189,16 @@ function register(router) {
 
     let paymentStatus = booking.payment_status;
     if (booking.payment_status === 'captured') {
-      if (profile.stripe_account_id && profile.stripe_payouts_enabled) {
+      if (profile.paypal_email) {
         try {
-          const payoutAmount = Math.round((booking.total - booking.service_fee) * 100);
-          const transfer = await stripe.createTransfer({
-            amount: payoutAmount, destination: profile.stripe_account_id,
-            metadata: { kind: 'booking', bookingId: String(booking.id) },
+          const payoutAmount = Math.round((booking.total - booking.service_fee) * 100) / 100;
+          const transferId = await payments.payout({
+            amountDollars: payoutAmount, recipientEmail: profile.paypal_email,
+            note: `Payout for your ${booking.event_date} booking`,
           });
-          db.prepare('UPDATE bookings SET transfer_id = ? WHERE id = ?').run(transfer.id, booking.id);
+          db.prepare('UPDATE bookings SET transfer_id = ? WHERE id = ?').run(transferId, booking.id);
           paymentStatus = 'transferred';
-          notify(profile.user_id, `Payout sent for your ${booking.event_date} booking: $${(payoutAmount / 100).toFixed(2)}.`, 'success');
+          notify(profile.user_id, `Payout sent for your ${booking.event_date} booking: $${payoutAmount.toFixed(2)}.`, 'success');
         } catch (err) {
           // Don't let a payout failure block marking the booking complete —
           // the service happened; the money side can be retried/resolved
@@ -228,13 +208,13 @@ function register(router) {
           notify(profile.user_id, `We couldn't send your payout for the ${booking.event_date} booking automatically — contact support.`, 'error');
         }
       } else {
-        // No connected payout account yet — the charge is already held by
-        // the platform; nothing to transfer to. Flagged rather than solved:
+        // No payout email on file yet — the charge is already held by the
+        // platform; nothing to send it to. Flagged rather than solved:
         // there's no background job here that retries this once the
-        // musician does connect, so this payout needs to be sent by hand
+        // musician does add one, so this payout needs to be sent by hand
         // (or the musician needs to connect, then an admin needs a way to
         // trigger it) — out of scope for this pass.
-        notify(profile.user_id, `Connect a Stripe account from your dashboard's Payments tab to receive your payout for the ${booking.event_date} booking.`, 'info');
+        notify(profile.user_id, `Add your PayPal email from your dashboard's Payments tab to receive your payout for the ${booking.event_date} booking.`, 'info');
       }
     }
     db.prepare("UPDATE bookings SET status='completed', payment_status=?, updated_at=datetime('now') WHERE id=?").run(paymentStatus, booking.id);
@@ -242,8 +222,8 @@ function register(router) {
   });
 
   // No-show reporting & consequences:
-  // - musician no-show: client is refunded (conceptually — no real payment
-  //   processor here), musician forfeits the service fee and takes a strike.
+  // - musician no-show: client is refunded, musician forfeits the service
+  //   fee and takes a strike.
   // - client no-show: musician may invoice separately; no refund is owed.
   router.post('/api/bookings/:id/no-show', async (ctx) => {
     const user = requireAuth(ctx);

@@ -6,7 +6,7 @@ const { HttpError } = require('./router');
 // Set via an environment variable (Render -> Environment: SERVICE_FEE_RATE,
 // e.g. "0.10" for 10%) rather than hardcoded, so the take rate can be turned
 // on/off without a code change — same "flip a switch later" pattern as
-// STRIPE_SECRET_KEY. Defaults to 0 (free) for now: while the marketplace is
+// PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET. Defaults to 0 (free) for now: while the marketplace is
 // still building up both musicians/equipment owners and clients, charging a
 // fee on top would just be friction neither side has a reason to accept
 // yet. A client is charged exactly the rate/rental price with $0 added, and
@@ -100,8 +100,7 @@ function serializeMusicianProfile(p) {
     references: parseJsonSafe(p.reference_list, []),
     reviewCount: stats.cnt || 0,
     avgRating: stats.avg ? Math.round(stats.avg * 10) / 10 : null,
-    stripeConnected: !!p.stripe_account_id,
-    stripePayoutsEnabled: !!p.stripe_payouts_enabled,
+    paypalConnected: !!p.paypal_email,
     createdAt: p.created_at,
   };
 }

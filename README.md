@@ -55,9 +55,9 @@ instead of erroring.
 - Request-to-hire booking flow: pending → accept / decline / counter-offer →
   accepted → completed, with a 10% platform service fee calculated
   automatically.
-- No-show handling: musician no-show → client refund (conceptual — no live
-  payment processor is wired up) + musician forfeits the fee + strike on
-  their profile. Client no-show → no refund, musician may invoice separately.
+- No-show handling: musician no-show → client is refunded in full through
+  PayPal + musician forfeits the fee + strike on their profile. Client
+  no-show → no refund, musician may invoice separately.
 - Reviews (1–5 stars) on completed bookings, favorites, in-app notifications.
 - Equipment rental marketplace: owner profiles, listings with daily rate +
   refundable security deposit, rental requests with a full fee breakdown.
@@ -72,13 +72,20 @@ instead of erroring.
   resilient load; it never caches `/api/*`, so bookings, search, and auth
   stay live. The layout is also responsive down to phone widths.
 
-## What's *not* wired up (and why)
+## Payments
 
-This app tracks money conceptually (fees, deposits, refunds are all computed
-and stored) but does **not** move real money — there's no Stripe/PayPal
-integration. Wiring one in is a natural next step once you're ready to take
-real payments; the booking/rental records already carry the amounts a payment
-integration would need.
+Booking/rental payments run on PayPal: a client's payment is authorized
+(held, not charged) when they send a request, and only actually charged once
+the musician/equipment owner accepts — see `server/lib/paypal.js` and
+`server/lib/payments.js`. Sellers are paid out to the PayPal email address
+they add from their dashboard's Payments tab (the PayPal Payouts API — no
+separate account-linking/onboarding step needed).
+
+Until `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` are set on the server (see
+`DEPLOY.md`), the whole thing runs in demo mode: no PayPal buttons are shown,
+and every booking/rental gets a fake authorization instead of a real one —
+so the full flow (search, request, accept/decline/counter, complete,
+review) works out of the box with zero setup.
 
 ID verification is a one-click demo toggle, not a real identity check.
 
