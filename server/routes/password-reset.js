@@ -42,6 +42,12 @@ function register(router) {
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());
     if (!user) return generic;
+    // TEMP DEBUG (2026-10-12): tracking down a NOT NULL constraint failure
+    // on password_reset_tokens.user_id — remove once root-caused.
+    if (user.id === undefined || user.id === null) {
+      console.error('[debug forgot-password] user row missing id:', JSON.stringify(user));
+      return generic;
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
