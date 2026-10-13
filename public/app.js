@@ -619,7 +619,17 @@ function SignupPage() {
       h('label', {}, 'Date of birth'),
       h('input', {
         type: 'date', required: true, value: v.dateOfBirth,
-        oninput: (e) => { v.dateOfBirth = e.target.value; rerender(); },
+        // Only rerender on `change` (the date is actually committed —
+        // a full value, or the user finished editing), not on every
+        // `input` keystroke. rerender() rebuilds the whole form from
+        // scratch (see build()/h() above, which always create new DOM
+        // nodes rather than diffing) and swaps it in via replaceWith.
+        // Doing that on every `input` event destroyed and recreated
+        // this exact input element mid-keystroke, which reset the
+        // browser's native per-segment date typing state and made it
+        // look like the year field "stopped" after two digits.
+        oninput: (e) => { v.dateOfBirth = e.target.value; },
+        onchange: (e) => { v.dateOfBirth = e.target.value; rerender(); },
       }),
       isMinor ? h('div', { class: 'card', style: 'background:var(--surface-2,#f4efe8);margin:4px 0 2px;padding:14px' },
         h('p', { style: 'margin:0 0 10px;font-weight:600' }, "Since you're under 18, we need a parent or guardian's OK."),
