@@ -619,17 +619,28 @@ function SignupPage() {
       h('label', {}, 'Date of birth'),
       h('input', {
         type: 'date', required: true, value: v.dateOfBirth,
-        // Only rerender on `change` (the date is actually committed —
-        // a full value, or the user finished editing), not on every
-        // `input` keystroke. rerender() rebuilds the whole form from
-        // scratch (see build()/h() above, which always create new DOM
-        // nodes rather than diffing) and swaps it in via replaceWith.
-        // Doing that on every `input` event destroyed and recreated
-        // this exact input element mid-keystroke, which reset the
-        // browser's native per-segment date typing state and made it
-        // look like the year field "stopped" after two digits.
+        // Rerender only on `blur` (the user has actually left the
+        // field), never on `input` or `change`. rerender() rebuilds the
+        // whole form from scratch (see build()/h() above, which always
+        // create new DOM nodes rather than diffing) and swaps it in via
+        // replaceWith — doing that while this input still has focus
+        // destroys and recreates it mid-edit, which resets the
+        // browser's native per-segment date typing state.
+        //
+        // `change` looked safer than `input` but isn't: a native date
+        // input fires `change` as soon as all three segments hold SOME
+        // value, even a single digit in the year (e.g. typing just "1"
+        // produces the technically-complete, if nonsensical, date
+        // 0001-11-15). Verified directly in the browser — `change`
+        // fired after one keystroke, with the value "0001-11-15", and
+        // focus had already moved to <body>. So gating on `change`
+        // still rebuilt the form mid-keystroke, just one step later
+        // than gating on `input` did. `blur` only fires once the user
+        // genuinely tabs or clicks away, which is the one moment it's
+        // actually safe to rebuild the form (e.g. to reveal/hide the
+        // guardian fields below based on age).
         oninput: (e) => { v.dateOfBirth = e.target.value; },
-        onchange: (e) => { v.dateOfBirth = e.target.value; rerender(); },
+        onblur: (e) => { v.dateOfBirth = e.target.value; rerender(); },
       }),
       isMinor ? h('div', { class: 'card', style: 'background:var(--surface-2,#f4efe8);margin:4px 0 2px;padding:14px' },
         h('p', { style: 'margin:0 0 10px;font-weight:600' }, "Since you're under 18, we need a parent or guardian's OK."),
